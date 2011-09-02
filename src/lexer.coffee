@@ -116,13 +116,21 @@ exports.Lexer = class Lexer
       id  = COFFEE_ALIAS_MAP[id] if id in COFFEE_ALIASES
       tag = switch id
         when '!'                                  then 'UNARY'
-        when '==', '!='                           then 'COMPARE'
+        when '==', '!=', '=~'                     then 'COMPARE'
         when '&&', '||'                           then 'LOGIC'
         when 'true', 'false', 'null', 'undefined' then 'BOOL'
         when 'break', 'continue', 'debugger'      then 'STATEMENT'
         else  tag
 
-    @token tag, id
+    if matches = id.match REGEX_MATCH
+      @token 'IDENTIFIER', '__matches'
+      if matches[1] == '&' || submatch = matches[1].match /([1-9])/
+        index = if matches[1] == '&' then 0 else submatch[1]
+        @token 'INDEX_START', '['
+        @token 'NUMBER', index
+        @token ']', ']'
+    else
+      @token tag, id
     @token ':', ':' if colon
     input.length
 
@@ -593,7 +601,7 @@ COFFEE_KEYWORDS = COFFEE_KEYWORDS.concat COFFEE_ALIASES
 RESERVED = [
   'case', 'default', 'function', 'var', 'void', 'with'
   'const', 'let', 'enum', 'export', 'import', 'native'
-  '__hasProp', '__extends', '__slice', '__bind', '__indexOf'
+  '__hasProp', '__extends', '__slice', '__bind', '__indexOf', '__matches'
 ]
 
 # The superset of both JavaScript keywords and reserved words, none of which may
@@ -604,12 +612,13 @@ exports.RESERVED = RESERVED.concat(JS_KEYWORDS).concat(COFFEE_KEYWORDS)
 
 # Token matching regexes.
 IDENTIFIER = /// ^
-  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]* )
-  # ( [^\n\S]* : (?!:) )?  # Is this a property name?, old comment
+  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]* | \\[&~1-9] )
   (   : (?!:)
     | [^\n\S]* : (?!:|\w)
   )?
 ///
+
+REGEX_MATCH = ///^ \\(&|~|[1-9]) $///
 
 NUMBER     = ///
   ^ 0x[\da-f]+ |                              # hex
@@ -624,6 +633,7 @@ OPERATOR   = /// ^ (
    | >>>=?             # zero-fill right shift
    | ([-+:])\1         # doubles
    | ([&|<>])\2=?      # logic / shift
+   | =~                # regexp
    | \?\.              # soak access
    | \.{2,3}           # range or splat
 ) ///
@@ -695,7 +705,7 @@ LOGIC   = ['&&', '||', '&', '|', '^']
 SHIFT   = ['<<', '>>', '>>>']
 
 # Comparison tokens.
-COMPARE = ['==', '!=', '<', '>', '<=', '>=']
+COMPARE = ['==', '!=', '<', '>', '<=', '>=', '=~']
 
 # Mathematical tokens.
 MATH    = ['*', '/', '%']
