@@ -122,7 +122,7 @@ exports.Lexer = class Lexer
         when 'break', 'continue', 'debugger'      then 'STATEMENT'
         else  tag
 
-    if matches = id.match REGEX_MATCH
+    if matches = id.match REGEX_MAGIC_IDENTIFIER
       @token 'IDENTIFIER', '__matches'
       if matches[1] == '&' || submatch = matches[1].match /([1-9])/
         index = if matches[1] == '&' then 0 else submatch[1]
@@ -618,7 +618,7 @@ IDENTIFIER = /// ^
   )?
 ///
 
-REGEX_MATCH = ///^ \\(&|~|[1-9]) $///
+REGEX_MAGIC_IDENTIFIER = ///^ \\(&|~|[1-9]) $///
 
 NUMBER     = ///
   ^ 0x[\da-f]+ |                              # hex
