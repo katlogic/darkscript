@@ -75,7 +75,7 @@ exports.Lexer = class Lexer
   identifierToken: ->
     return 0 unless match = IDENTIFIER.exec @chunk
     [input, id, colon] = match
-
+    
     if id is 'own' and @tag() is 'FOR'
       @token 'OWN', id
       return id.length
@@ -129,6 +129,9 @@ exports.Lexer = class Lexer
         @token 'INDEX_START', '['
         @token 'NUMBER', index
         @token ']', ']'
+    #else if tag == 'IDENTIFIER' and m = id.match(/(.+)!$/)
+      #@token tag, m[1]
+      #@token 'ASYNC', '!'
     else
       @token tag, id
     @token ':', ':' if colon
@@ -612,13 +615,15 @@ exports.RESERVED = RESERVED.concat(JS_KEYWORDS).concat(COFFEE_KEYWORDS)
 
 # Token matching regexes.
 IDENTIFIER = /// ^
-  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]* | \\[&~1-9] )
+  ( \\[&~1-9] | [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff!]* )
   (   : (?!:)
-    | [^\n\S]* : (?!:|\w)
+    | [^\n\S]* : (?!:|\w|[\x7f-\uffff])
   )?
 ///
 
 REGEX_MAGIC_IDENTIFIER = ///^ \\(&|~|[1-9]) $///
+REDO_IDENTIFIER = 'redo!'
+
 
 NUMBER     = ///
   ^ 0x[\da-f]+ |                              # hex
@@ -648,7 +653,7 @@ MULTI_DENT = /^(?:\n[^\n\S]*)+/
 
 SIMPLESTR  = /^'[^\\']*(?:\\.[^\\']*)*'/
 
-SYMBOLSTR  = /^\:((?:\\.|\w|-)+)/
+SYMBOLSTR  = /^\:((?:\\.|\w|-|[\x7f-\uffff])+)/
 
 JSTOKEN    = /^`[^\\`]*(?:\\.[^\\`]*)*`/
 

@@ -158,6 +158,7 @@ eq :one, 'one'
 eq :one-two, 'one-two'
 eq :one\ two, 'one two'
 eq :one\\two, 'one\\two'
+eq :中文测试, '中文测试'
 
 test "#1046, empty string interpolations", ->
   eq "#{ }", ''

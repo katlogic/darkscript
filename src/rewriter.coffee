@@ -28,6 +28,7 @@ class exports.Rewriter
     @addImplicitParentheses()
     @ensureBalance BALANCED_PAIRS
     @rewriteClosingParens()
+    @rewriteAsynchronous()
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -269,6 +270,101 @@ class exports.Rewriter
       else
         tokens.splice i, 0, val
       1
+
+  rewriteAsynchronous: ->
+    asyncTokens = []
+    asyncParams = []
+    line = 0
+    # '[' IDENTIFIER (',' IDENTIFIER)* ']'
+    i = 0
+    length = @tokens.length
+
+    pushTokens = (tokens) ->
+      asyncTokens.push token for token in tokens
+
+    updateAsyncParams = ->
+      tokens = asyncParams
+      last = tokens.length - 1
+      if tokens.length < 2
+        tokens.unshift ['PARAM_START', '(', line ]
+        tokens.push ['PARAM_END', ')', line]
+      else if tokens.length >= 2 and tokens[0][0] == '[' and tokens[last][0] == ']'
+        tokens[0][0] = ['PARAM_START', '(', tokens[0][2] ]
+        tokens[last][0] = ['PARAM_END', ')', tokens[last][2]]
+      else
+        throw new Error 'invalid async params'
+
+    pushAsyncParams = ->
+      pushTokens asyncParams
+      asyncParams = []
+
+    isAsyncToken = (token) ->
+      return token and token[0] == 'IDENTIFIER' and token[1].match /\!$/
+
+    indents = []
+
+    closeCallback = ->
+      if indents[indents.length-1] isnt 'INDENT'
+        asyncTokens.push ['OUTDENT', 2, line]
+        asyncTokens.push ['CALL_END', ')', line]
+        indents.pop()
+
+    pushToken = (token) ->
+      pushTokens asyncParams
+      asyncParams = []
+      asyncTokens.push token
+
+    for i in [0...length]
+      token = @tokens[i]
+      [tag, id, line] = token
+
+      switch tag
+        when '['
+          # '[' maybe async callback's params store the token until ']'
+          pushAsyncParams()
+          asyncTokens.push token while token[0] isnt ']' and token = @tokens[++i]
+
+        when '='
+          # Next token must be async identifier or clear
+          # if next token is asynchronous, current the '=' will be ignored
+          unless isAsyncIdentifier(@tokens[i+1])
+            pushAsyncParams()
+            asyncTokens.push token
+
+        when 'IDENTIFIER'
+          if isAsyncIdentifier(token)
+            updateAsyncParams()
+            indents.push [
+              'IN_ASYNC',
+              asyncParams
+            ]
+            asyncParams = []
+          else
+            pushToken token
+
+        when 'CALL_END'
+          indent = indents[indents.length-1]
+          if indent isnt 'INDENT'
+            pushTokens indent[1]
+            asyncTokens.push ['->', '->', line, newLine: true]
+            asyncTokens.push ['INDENT', 2, line ]
+          else
+            pushToken token
+
+        when 'INDENT'
+          indents.push 'INDENT'
+          pushToken token
+          
+        when 'OUTDENT'
+          closeCallback()
+          pushToken token
+          indents.pop()
+
+      closeCallback()
+      asyncTokens
+    true
+
+
 
   # Generate the indentation tokens, based on another token on the same line.
   indentation: (token) ->
