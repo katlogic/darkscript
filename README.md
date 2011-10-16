@@ -70,6 +70,8 @@ Output:
 
 ### 4. Asynchronous
 
+Grammar: add '!' to the end of the function
+
 Input:
 
     foo_0_2!()
