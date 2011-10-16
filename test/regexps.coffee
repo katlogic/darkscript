@@ -38,6 +38,9 @@ test "#764: regular expressions should be indexable", ->
 test "#584: slashes are allowed unescaped in character classes", ->
   ok /^a\/[/]b$/.test 'a//b'
 
+test "#1724: regular expressions beginning with `*`", ->
+  throws -> CoffeeScript.compile '/*/'
+
 
 # Heregexe(n|s)
 
@@ -58,3 +61,11 @@ test "=~ operator", ->
   ok m[0] is \~[0]
   ok m[1] is \1
 
+test "#1724: regular expressions beginning with `*`", ->
+  throws -> CoffeeScript.compile '/// * ///'
+
+test "empty regular expressions with flags", ->
+  fn = (x) -> x
+  a = "" + //i
+  fn ""
+  eq '/(?:)/i', a
