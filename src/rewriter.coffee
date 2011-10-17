@@ -320,7 +320,7 @@ class exports.Rewriter
               stacks.pop token
             else if stacks.length > 0
               # ignore identifier in parens
-            else if token[0] in ['IDENTIFIER', '.', '?.', '::']
+            else if token[0] in ['IDENTIFIER', '.', '?.', '::', '@']
               # ignore identifier which predence <= '.'
             else
               # no async tag found
