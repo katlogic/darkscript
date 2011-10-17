@@ -70,7 +70,7 @@ Output:
 
 ### 4. Asynchronous
 
-Grammar: add '!' to the end of the function
+Grammar: add '!' to the end of the function name
 
 Input:
 
