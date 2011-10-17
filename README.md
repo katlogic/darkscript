@@ -74,7 +74,7 @@ Grammar: add '!' to the end of the function name
 
 Input:
 
-    foo_0_2!()
+    foo_0_2!
     va = foo_0_1!()
     [va, vb] = foo_0_2!()
 
@@ -82,9 +82,9 @@ Input:
     va = foo_1_1! 'pa'
     [va, vb] = foo_1_2! 'pa'
 
-    foo_2_0! 'pa', 'pb'
-    va = foo_2_1! 'pa', 'pb'
-    [va, vb] = foo_2_2! 'pa', 'pb'
+    obj.obj.foo_2_0! 'pa', 'pb'
+    va = obj.foo_2_1! 'pa', 'pb'
+    [va, vb] = obj::foo_2_2! 'pa', 'pb'
 
 Output:
 
