@@ -18,6 +18,12 @@ test 'async generate', ->
   va = foo_2_1! 'pa', 'pb'
   [va, vb] = foo_2_2! 'pa', 'pb'
 
+  if true
+    foo_2_2!
+  else
+    b = foo_2_1!
+    b = []
+
 test 'async caculate', ->
   fa = (n) ->
     1 + n

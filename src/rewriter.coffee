@@ -242,7 +242,7 @@ class exports.Rewriter
     indents = []
 
     closeCallback = ->
-      if indents[indents.length-1] and indents[indents.length-1] is 'CLOSE_CALLBACK'
+      if last(indents) is 'CLOSE_CALLBACK'
         len = asyncTokens.length
         if asyncTokens[len-1] and asyncTokens[len-1][0] == 'TERMINATOR'
           asyncTokens.pop()
@@ -326,6 +326,8 @@ class exports.Rewriter
               # no async tag found
               pushAsyncParams()
               asyncTokens.push equalToken
+              --i
+              tempTokens.pop()
               pushTokens tempTokens
               break
 

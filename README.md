@@ -74,13 +74,10 @@ Grammar: add '!' to the end of the function name
 
 Input:
 
+    # ! always is a function
     foo_0_2!
     va = foo_0_1!()
     [va, vb] = foo_0_2!()
-
-    foo_1_0! 'pa'
-    va = foo_1_1! 'pa'
-    [va, vb] = foo_1_2! 'pa'
 
     obj.obj.foo_2_0! 'pa', 'pb'
     va = obj.foo_2_1! 'pa', 'pb'
@@ -91,13 +88,11 @@ Output:
     foo_0_2(function() {
       return foo_0_1(function(va) {
         return foo_0_2(function(va, vb) {
-          return foo_1_0('pa', function() {
-            return foo_1_1('pa', function(va) {
-              return foo_1_2('pa', function(va, vb) {
-                return obj.obj.foo_2_0('pa', 'pb', function() {
-                  return obj.foo_2_1('pa', 'pb', function(va) {
-                    return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {});
-                  });
+          return obj.obj.foo_2_0('pa', 'pb', function() {
+            return obj.foo_2_1('pa', 'pb', function(va) {
+              return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {
+                return world(function(result) {
+                  return hello(result);
                 });
               });
             });
