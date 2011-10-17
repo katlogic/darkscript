@@ -258,6 +258,23 @@ class exports.Rewriter
       asyncParams = []
       asyncTokens.push token
 
+    last = (arr) ->
+      if arr.length == 0
+        undefined
+      else
+        arr[arr.length - 1]
+
+
+    insertCallbackStart = ->
+      indent = indents[indents.length-1]
+      indent = indents.pop()
+      params = indents.pop()
+      if asyncTokens[asyncTokens.length - 1][0] != 'CALL_START'
+        asyncTokens.push [',', ',', line]
+      pushTokens params 
+      asyncTokens.push ['->', '->', line, newLine: true]
+      asyncTokens.push ['INDENT', 2, line ]
+      indents.push 'CLOSE_CALLBACK'
     for i in [0...length]
       token = @tokens[i]
       [tag, id, line] = token
@@ -276,11 +293,41 @@ class exports.Rewriter
               break
 
         when '='
-          # Next token must be async identifier or clear
-          # if next token is asynchronous, current the '=' will be ignored
-          unless isAsyncToken(@tokens[i+1])
-            pushAsyncParams()
-            asyncTokens.push token
+          # search asynchronous method
+          stacks = []
+          tempTokens = []
+          pairs = {}
+          pairs['('] = ')'
+          pairs['['] = ']'
+          pairs['{'] = '}'
+
+          equalToken = token
+          while true
+            ++i
+            token = @tokens[i]
+            break unless token
+            tempTokens.push token
+            if stacks.length is 0 and isAsyncToken(token)
+              # rewind to process async tag
+              --i
+              tempTokens.pop()
+              pushTokens tempTokens
+              break
+            else if token[0] in ['[', '(', '{']
+              stacks.push token
+            else if token[0] in [']', ')', '}']
+              # assume the parens always in pair
+              stacks.pop token
+            else if stacks.length > 0
+              # ignore identifier in parens
+            else if token[0] in ['IDENTIFIER', '.', '?.', '::']
+              # ignore identifier which predence <= '.'
+            else
+              # no async tag found
+              pushAsyncParams()
+              asyncTokens.push equalToken
+              pushTokens tempTokens
+              break
 
         when 'IDENTIFIER'
           if isAsyncToken(token)
@@ -291,21 +338,18 @@ class exports.Rewriter
             m = token[1].match /(.*)\!$/
             token = [token[0], m[1], token[2]]
             pushToken token
+
+            if @tag(i+1) isnt 'CALL_START'
+              asyncTokens.push ['CALL_START', '(', line]
+              insertCallbackStart()
           else
             pushAsyncParams()
             asyncParams = [token]
 
         when 'CALL_END'
-          indent = indents[indents.length-1]
-          if indent and indent is 'OPEN_CALLBACK'
-            indent = indents.pop()
-            params = indents.pop()
-            if asyncTokens[asyncTokens.length - 1][0] != 'CALL_START'
-              asyncTokens.push [',', ',', line]
-            pushTokens params 
-            asyncTokens.push ['->', '->', line, newLine: true]
-            asyncTokens.push ['INDENT', 2, line ]
-            indents.push 'CLOSE_CALLBACK'
+          pushAsyncParams()
+          if last(indents) is 'OPEN_CALLBACK'
+            insertCallbackStart()
           else
             pushToken token
 

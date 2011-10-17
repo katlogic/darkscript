@@ -94,9 +94,9 @@ Output:
           return foo_1_0('pa', function() {
             return foo_1_1('pa', function(va) {
               return foo_1_2('pa', function(va, vb) {
-                return foo_2_0('pa', 'pb', function() {
-                  return foo_2_1('pa', 'pb', function(va) {
-                    return foo_2_2('pa', 'pb', function(va, vb) {});
+                return obj.obj.foo_2_0('pa', 'pb', function() {
+                  return obj.foo_2_1('pa', 'pb', function(va) {
+                    return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {});
                   });
                 });
               });
@@ -105,5 +105,3 @@ Output:
         });
       });
     });
-
-

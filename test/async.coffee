@@ -30,3 +30,18 @@ test 'async caculate', ->
   b = fb!(a)
   c = fc!(b)
   eq c, 6
+
+test 'async object', ->
+  class F
+    a: (n) ->
+      1 + n
+    b: (n) ->
+      2 + n
+    @c: (n) ->
+      3 + n
+
+  f = new F()
+  a = f.a!(0)
+  b = f.b!(a)
+  c = f::c!(b)
+  eq c, 6
