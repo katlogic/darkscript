@@ -222,15 +222,12 @@ class exports.Rewriter
     updateAsyncParams = ->
       tokens = asyncParams
       last = tokens.length - 1
-      if tokens.length == 1
-        tokens.unshift ['PARAM_START', '(', line ]
-        tokens.push ['PARAM_END', ')', line]
-      else if tokens.length >= 2 and tokens[0][0] == '[' and tokens[last][0] == ']'
+      if tokens.length >= 2 and tokens[0][0] == '[' and tokens[last][0] == ']'
         tokens[0] = ['PARAM_START', '(', tokens[0][2] ]
         tokens[last] = ['PARAM_END', ')', tokens[last][2]]
-      else if tokens.length == 0
       else
-        throw new Error 'invalid async params'
+        tokens.unshift ['PARAM_START', '(', line ]
+        tokens.push ['PARAM_END', ')', line]
 
     pushAsyncParams = ->
       pushTokens asyncParams
@@ -272,7 +269,7 @@ class exports.Rewriter
       if asyncTokens[asyncTokens.length - 1][0] != 'CALL_START'
         asyncTokens.push [',', ',', line]
       pushTokens params 
-      asyncTokens.push ['->', '->', line, newLine: true]
+      asyncTokens.push ['=>', '=>', line, newLine: true]
       asyncTokens.push ['INDENT', 2, line ]
       indents.push 'CLOSE_CALLBACK'
     for i in [0...length]
@@ -331,7 +328,7 @@ class exports.Rewriter
               pushTokens tempTokens
               break
 
-        when 'IDENTIFIER'
+        when 'IDENTIFIER', '@'
           if isAsyncToken(token)
             updateAsyncParams()
             indents.push asyncParams
@@ -345,8 +342,7 @@ class exports.Rewriter
               asyncTokens.push ['CALL_START', '(', line]
               insertCallbackStart()
           else
-            pushAsyncParams()
-            asyncParams = [token]
+            asyncParams.push token
 
         when 'CALL_END'
           pushAsyncParams()

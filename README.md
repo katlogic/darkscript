@@ -74,29 +74,47 @@ Grammar: add '!' to the end of the function name
 
 Input:
 
-    # ! always is a function
-    foo_0_2!
-    va = foo_0_1!()
-    [va, vb] = foo_0_2!()
+    do ->
+      # ! always is a function
+      foo_0_0!
+      va = obj.foo_2_1! 'pa', 'pb'
+      # @ is inherited
+      [va, @vb] = obj::foo_2_2! 'pa', 'pb'
 
-    obj.obj.foo_2_0! 'pa', 'pb'
-    va = obj.foo_2_1! 'pa', 'pb'
-    [va, vb] = obj::foo_2_2! 'pa', 'pb'
+    # another async block
+    do ->
+      @va = @foo! 'pa'
+
+    # if, while and so on has block too
+    if true
+      va = foo!
+    else
+      vb = foo!
 
 Output:
 
-    foo_0_2(function() {
-      return foo_0_1(function(va) {
-        return foo_0_2(function(va, vb) {
-          return obj.obj.foo_2_0('pa', 'pb', function() {
-            return obj.foo_2_1('pa', 'pb', function(va) {
-              return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {
-                return world(function(result) {
-                  return hello(result);
-                });
-              });
-            });
+    var _this = this;
+
+    (function() {
+      var _this = this;
+      return foo_0_0(function() {
+        return obj.foo_2_1('pa', 'pb', function(va) {
+          return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {
+            _this.vb = vb;
           });
         });
       });
-    });
+    })();
+
+    (function() {
+      var _this = this;
+      return this.foo('pa', function(va) {
+        _this.va = va;
+      });
+    })();
+
+    if (true) {
+      foo(function(va) {});
+    } else {
+      foo(function(vb) {});
+    }
