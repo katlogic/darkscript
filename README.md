@@ -1,5 +1,5 @@
-About
-=====
+About ToffeeScript
+==================
 
 Fully compatible with CoffeeScript.
 
@@ -7,6 +7,7 @@ It's the base on CoffeeScript and with some improvements.
 
 Additional Features
 ===================
+
 1. Asynchronous
 2. String In Symbol Style
 3. RegExp operator =~
@@ -65,6 +66,7 @@ Output:
     }
 
 ### 2. String in Symbol style
+
 It's the similar to Ruby Symbol, but it's just a String, use for the easier to write string.
 
 Grammar: /^\:((?:\\.|\w|-)+)/
@@ -98,6 +100,7 @@ Output:
     
 
 ### 4. RegExp Magic Identifier \& \~ \1..9
+
 Magic Identifiers:
 
     \~: the match
@@ -124,4 +127,12 @@ Output:
         console.info(__matches[1], __matches[2]);
       }
     }).call(this);
+
+Installation
+============
+
+npm install toffee-script
+
+There are two binary file *toffee* and *tcons* relative to coffee and cake
+
 
