@@ -163,27 +163,6 @@ exports.Lexer = class Lexer
         else
           @token 'STRING', @escapeLines string
         length = string.length
-      when '<'
-        return 0 unless @chunk.substr(0,3) == '<<<'
-        indentString = ''
-        for i in [1..@indent]
-          indentString += ' '
-        string = @getStringUntilLevel @chunk.substr(3)
-        length = string.length + 3
-        if string.substr(0,1+indentString.length) == "\n#{indentString}"
-          string = string.substr(1+indentString.length)
-        else if string[0] == " " || string[0] == "\n"
-          string = string.substr(1)
-        string = string.replace ///\n#{indentString}///g, "\n"
-        unless -1 == string.indexOf '#{'
-          string = string.replace /\n/g, '\\n'
-          @interpolateString string
-        else
-          string = string.replace /\\(.)/g, '$1'
-          string = string.replace /\n/g, '\\n'
-          string = string.replace /"/g, '\\"'
-          string = "\"#{string}\""
-          @token 'STRING', string
       when ":"
         return 0 unless match = SYMBOLSTR.exec @chunk
         @token 'STRING', (string = "'#{match[1]}'")

@@ -51,3 +51,22 @@ test 'async object', ->
   b = f.b!(a)
   c = f::c!(b)
   eq c, 6
+
+test 'async this', ->
+  class F
+    plus_1: (n, callback) ->
+      callback.call @, n+1
+
+    plus_3: (n, callback) ->
+      @result = n
+      @result = @plus_1! @result
+      @result = @plus_1! @result
+      @result = @plus_1! @result
+      callback.call @, @result
+
+  f = new F()
+  self = this
+  a = f.plus_3!(1)
+  eq @, self
+  eq a, 4
+

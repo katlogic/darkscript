@@ -1,6 +1,8 @@
 About
 =====
-Fully compatible with CoffeeScript
+
+Fully compatible with CoffeeScript.
+
 It's the base on CoffeeScript and with some improvements.
 
 Additional Features
@@ -41,6 +43,7 @@ Output:
       var _this = this;
       return foo_0_0(function() {
         return obj.foo_2_1('pa', 'pb', function(va) {
+          _this.va = va;
           return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {
             _this.vb = vb;
           });
@@ -79,7 +82,9 @@ Output:
     'hello-world'
 
 ### 3. RegExp operator =~
+
 Grammar: String =~ RegExp
+
 Example:
 
     "hello" =~ /\w+/
