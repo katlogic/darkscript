@@ -3,7 +3,7 @@ About ToffeeScript
 
 Fully compatible with CoffeeScript.
 
-It's the base on [CoffeeScript](http://jashkenas.github.com/coffee-script/) and with some improvements.
+It's the base on [CoffeeScript](http://jashkenas.github.com/coffee-script/) and have some additional features.
 
 Additional Features
 ===================
