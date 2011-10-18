@@ -2,7 +2,7 @@
   "name":         "toffee-script",
   "description":  "CoffeeScript with asynchronous syntax and other improvements",
   "keywords":     ["javascript", "language", "coffeescript", "compiler", "asynchronous", "toffeescript"],
-  "author":       "Jeremy Ashkenas",
+  "author":       "Jiang Miao",
   "version":      "1.1.3-pre",
   "licenses":     [{
     "type":       "MIT",
@@ -19,7 +19,7 @@
     "toffee":     "./bin/toffee",
     "tcons":      "./bin/tcons"
   },
-  "homepage":     "http://coffeescript.org",
+  "homepage":     "https://github.com/jiangmiao/toffee-script",
   "repository":   {
     "type": "git",
     "url": "git://github.com/jiangmiao/toffee-script.git"

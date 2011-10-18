@@ -3,7 +3,7 @@ About ToffeeScript
 
 Fully compatible with CoffeeScript.
 
-It's the base on CoffeeScript and with some improvements.
+It's the base on [CoffeeScript](http://jashkenas.github.com/coffee-script/) and with some improvements.
 
 Additional Features
 ===================
@@ -131,8 +131,8 @@ Output:
 Installation
 ============
 
-npm install toffee-script
+npm install -g toffee-script
 
-There are two binary file *toffee* and *tcons* relative to coffee and cake
+There are two binary file **toffee** and **tcons** relative to coffee and cake
 
 
