@@ -14,7 +14,7 @@ Module       = require 'module'
 # REPL Setup
 
 # Config
-REPL_PROMPT = 'coffee> '
+REPL_PROMPT = 'toffee> '
 REPL_PROMPT_CONTINUATION = '......> '
 enableColours = no
 unless process.platform is 'win32'

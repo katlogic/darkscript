@@ -21,9 +21,9 @@ printWarn = (line) -> process.binding('stdio').writeError line + '\n'
 
 # The help banner that is printed when `coffee` is called without arguments.
 BANNER = '''
-  Usage: coffee [options] path/to/script.coffee
+  Usage: toffee [options] path/to/script.coffee
   
-  If called without options, `coffee` will run your script.
+  If called without options, `toffee` will run your script.
          '''
 
 # The list of all the valid option flags that `coffee` knows how to handle.

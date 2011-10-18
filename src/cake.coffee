@@ -60,7 +60,7 @@ printTasks = ->
     spaces = 20 - name.length
     spaces = if spaces > 0 then Array(spaces + 1).join(' ') else ''
     desc   = if task.description then "# #{task.description}" else ''
-    console.log "cake #{name}#{spaces} #{desc}"
+    console.log "tcons #{name}#{spaces} #{desc}"
   console.log oparse.help() if switches.length
 
 # Print an error and exit when attempting to call an undefined task.

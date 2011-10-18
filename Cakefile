@@ -34,7 +34,7 @@ sources = [
 
 # Run a CoffeeScript through our node/coffee interpreter.
 run = (args, cb) ->
-  proc =         spawn 'bin/coffee', args
+  proc =         spawn 'bin/toffee', args
   proc.stderr.on 'data', (buffer) -> console.log buffer.toString()
   proc.on        'exit', (status) ->
     process.exit(1) if status != 0
@@ -44,7 +44,7 @@ run = (args, cb) ->
 log = (message, color, explanation) ->
   console.log color + message + reset + ' ' + (explanation or '')
 
-option '-p', '--prefix [DIR]', 'set the installation prefix for `cake install`'
+option '-p', '--prefix [DIR]', 'set the installation prefix for `tcons install`'
 
 task 'install', 'install CoffeeScript into /usr/local (or --prefix)', (options) ->
   base = options.prefix or '/usr/local'
@@ -57,8 +57,8 @@ task 'install', 'install CoffeeScript into /usr/local (or --prefix)', (options) 
   exec([
     "mkdir -p #{lib} #{bin}"
     "cp -rf bin lib LICENSE README package.json src #{lib}"
-    "ln -sfn #{lib}/bin/coffee #{bin}/coffee"
-    "ln -sfn #{lib}/bin/cake #{bin}/cake"
+    "ln -sfn #{lib}/bin/toffee #{bin}/toffee"
+    "ln -sfn #{lib}/bin/tcons #{bin}/tcons"
     "mkdir -p ~/.node_libraries"
     "ln -sfn #{lib}/lib/coffee-script #{node}"
   ].join(' && '), (err, stdout, stderr) ->
