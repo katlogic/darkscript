@@ -65,11 +65,31 @@ Output:
       foo(function(vb) {});
     }
 
+Theory
+
+ToffeeScript will translate
+
+    [any expression] = foo!
+    other expression
+
+to 
+
+    foo (any expression) ->
+      other expression
+
+so
+    [a = '3', @b = '4'] = foo!
+    @a = foo!
+    ...
+    and so on
+
+is valid too.
+
 ### 2. String in Symbol style
 
 It's the similar to Ruby Symbol, but it's just a String, use for the easier to write string.
 
-Grammar: /^\:((?:\\.|\w|-)+)/
+Grammar: ```/^\:((?:\\.|\w|-)+)/```
 
 Remark:- is valid character of the symbol
 

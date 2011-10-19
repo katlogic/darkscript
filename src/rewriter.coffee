@@ -330,6 +330,8 @@ class exports.Rewriter
 
         when 'IDENTIFIER', '@'
           if isAsyncToken(token)
+            if asyncParams.length == 1 && asyncParams[0][0] == '@'
+              pushAsyncParams()
             updateAsyncParams()
             indents.push asyncParams
             indents.push 'OPEN_CALLBACK'

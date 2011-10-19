@@ -24,6 +24,8 @@ test 'async generate', ->
     b = foo_2_1!
     b = []
 
+  @blank_with_object!
+
 test 'async caculate', ->
   fa = (n) ->
     1 + n
