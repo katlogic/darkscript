@@ -280,10 +280,15 @@ class exports.Rewriter
         when '['
           # '[' maybe async callback's params store the token until ']'
           pushAsyncParams()
+          stacks = 0
           while true
             asyncParams.push token 
+            if token[0] is '['
+              stacks++
             if token[0] is ']'
-              break
+              stacks--
+              if stacks == 0
+                break
             ++i
             token = @tokens[i]
             unless token
@@ -348,10 +353,19 @@ class exports.Rewriter
 
         when 'CALL_END'
           pushAsyncParams()
+          if last(indents) isnt 'CALL_START'
+            console.info last(indents)
+            console.info @tokens
+            throw new Error('CALL_END without CALL_START')
+          indents.pop()
           if last(indents) is 'OPEN_CALLBACK'
             insertCallbackStart()
           else
             pushToken token
+
+        when 'CALL_START'
+          indents.push 'CALL_START'
+          pushToken token
 
         when 'INDENT'
           indents.push 'INDENT'
