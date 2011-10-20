@@ -1400,7 +1400,8 @@ exports.RegexMatch = class RegexMatch extends Base
     data    = @data.compile o, LEVEL_ACCESS
     pattern = @pattern.compile o, LEVEL_PAREN
 
-    "#{utility('matches')} = #{data}.match(#{pattern})"
+    # TODO add outter ( ) only when needed
+    "(#{utility('matches')} = #{data}.match(#{pattern}))"
 
 #### In
 exports.In = class In extends Base

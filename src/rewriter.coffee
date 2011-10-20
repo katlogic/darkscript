@@ -354,8 +354,6 @@ class exports.Rewriter
         when 'CALL_END'
           pushAsyncParams()
           if last(indents) isnt 'CALL_START'
-            console.info last(indents)
-            console.info @tokens
             throw new Error('CALL_END without CALL_START')
           indents.pop()
           if last(indents) is 'OPEN_CALLBACK'

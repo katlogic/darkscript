@@ -65,7 +65,7 @@ Output:
       foo(function(vb) {});
     }
 
-Theory
+#### Theory
 
 ToffeeScript will translate
 
@@ -74,7 +74,7 @@ ToffeeScript will translate
 
 to 
 
-    foo (any expression) ->
+    foo (any expression) =>
       other expression
 
 so
