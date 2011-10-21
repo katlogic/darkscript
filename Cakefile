@@ -19,10 +19,12 @@ if enableColors
 # Built file header.
 header = """
   /**
-   * CoffeeScript Compiler v#{CoffeeScript.VERSION}
+   * ToffeeScript Compiler v#{CoffeeScript.VERSION}
    * http://coffeescript.org
    *
-   * Copyright 2011, Jeremy Ashkenas
+   * Copyright 2011, Jiang Miao 
+   * 
+   * CoffeeScript Copyright 2011, Jeremy Ashkenas
    * Released under the MIT License
    */
 """
