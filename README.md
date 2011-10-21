@@ -156,3 +156,47 @@ npm install -g toffee-script
 There are two binary file **toffee** and **tcons** relative to coffee and cake
 
 
+More Aboute Async Syntax
+========================
+
+### Asnyc call with return
+
+Input:
+
+    net = require 'net'
+
+    # [ and ] is not nesscary, add brackets to make code more readable
+    server = [socket] = net.createServer!
+    socket.write "Echo server\r\n"
+    socket.pipe socket
+    # --- means is end of a async scope, Idea is from Kaffeine
+    ---
+    server.listen 1337, "127.0.0.1"
+
+Output:
+
+    var net, server;
+    var _this = this;
+
+    net = require('net');
+
+    server = net.createServer(function(socket) {
+      socket.write("Echo server\r\n");
+      return socket.pipe(socket);
+    });
+
+    server.listen(1337, "127.0.0.1");
+
+### Complex expression for parameters
+
+Input:
+
+    [@a = 'default value'] = foo!
+
+Output:
+
+    var _this = this;
+
+    foo(function(a) {
+      _this.a = a != null ? a : 'default value';
+    });

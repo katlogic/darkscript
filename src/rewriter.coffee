@@ -209,192 +209,180 @@ class exports.Rewriter
       1
 
   rewriteAsynchronous: ->
-    asyncTokens = []
-    asyncParams = []
-    line = 0
-    # '[' IDENTIFIER (',' IDENTIFIER)* ']'
-    i = 0
-    length = @tokens.length
+    TAG   = 0
+    VALUE = 1
+    LINE  = 2
 
-    pushTokens = (tokens) ->
-      asyncTokens.push token for token in tokens
+    PARENS_START = {'[', '(', 'CALL_START', '{'}
+    PARENS_END   = {']', ')', 'CALL_END',   '}'}
+    IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
 
-    updateAsyncParams = ->
-      tokens = asyncParams
-      last = tokens.length - 1
-      if tokens.length >= 2 and tokens[0][0] == '[' and tokens[last][0] == ']'
-        tokens[0] = ['PARAM_START', '(', tokens[0][2] ]
-        tokens[last] = ['PARAM_END', ')', tokens[last][2]]
+    stack        = []
+    async_tokens = []
+    line         = 0
+
+    getToken = (n = -1) =>
+      if async_tokens.length
+        if n < 0 
+          n += async_tokens.length
+        async_tokens[n]
       else
-        tokens.unshift ['PARAM_START', '(', line ]
-        tokens.push ['PARAM_END', ')', line]
+        null
 
-    pushAsyncParams = ->
-      pushTokens asyncParams
-      asyncParams = []
+    getTag = (n = -1)=>
+      if token = getToken(n)
+        token[0]
+      else
+        null
 
-    isAsyncToken = (token) ->
-      return token and token[0] == 'IDENTIFIER' and token[1].match /\!$/
+    getAsync = (token) =>
+      if token[TAG] is 'IDENTIFIER' and m = token[VALUE].match /(.*)!$/
+        m[1]
+      else
+        null
 
-    indents = []
+    popCaller = =>
+      caller = []
+      level  = 0
+      while token = getToken()
+        tag = token[TAG]
+        if PARENS_END[tag]
+          ++level
+        else if PARENS_START[tag]
+          --level
+        else if IDENT[tag]
+        else if level > 0
+        else
+          break
+        async_tokens.pop()
+        caller.unshift token
+      caller
 
-    closeCallback = ->
-      if last(indents) is 'CLOSE_CALLBACK'
-        len = asyncTokens.length
-        if asyncTokens[len-1] and asyncTokens[len-1][0] == 'TERMINATOR'
-          asyncTokens.pop()
-        asyncTokens.push ['OUTDENT', 2, line]
-        asyncTokens.push ['CALL_END', ')', line]
-        indents.pop()
+    popParams = =>
+      params = []
+      level  = 0
+      if getTag() is ']'
+        while token = getToken()
+          tag = token[TAG]
+          if PARENS_END[tag]
+            ++level
+          else if PARENS_START[tag]
+            --level
+          async_tokens.pop()
+          params.unshift token
+          if level == 0
+            break
+        params
+      else
+        while token = getToken()
+          tag = token[TAG]
+          unless IDENT[tag]
+            break
+          async_tokens.pop()
+          params.unshift token
+        params
+      params
+
+    pushTokens = (tokens)=>
+      for token in tokens
+        async_tokens.push token
+      @
+
+    openCallback  = (params) =>
+      if params.length and params[0][0] is '['
+        # Multi parameters
+        params[0]                = ['PARAM_START', '(', line]
+        params[params.length - 1] = ['PARAM_END', ')', line]
+      else
+        params.unshift ['PARAM_START', '(', line]
+        params.push    ['PARAM_END', ')', line]
+
+      if getTag() isnt 'CALL_START'
+        async_tokens.push [',', ',', line]
+
+      pushTokens params
+      async_tokens.push ['=>', '=>', line]
+      async_tokens.push ['INDENT', 2, line]
+
+    closeCallback = =>
+      status = stack.pop()
+      if status is 'PARAM_END'
+        async_tokens.pop() if getTag() is 'TERMINATOR'
+        async_tokens.push ['OUTDENT',  2,   line]
+        async_tokens.push ['CALL_END', ')', line]
         true
       else
+        stack.push status
         false
 
-    pushToken = (token) ->
-      pushTokens asyncParams
-      asyncParams = []
-      asyncTokens.push token
-
-    last = (arr) ->
-      if arr.length == 0
-        undefined
-      else
-        arr[arr.length - 1]
-
-
-    insertCallbackStart = ->
-      indent = indents[indents.length-1]
-      indent = indents.pop()
-      params = indents.pop()
-      if asyncTokens[asyncTokens.length - 1][0] != 'CALL_START'
-        asyncTokens.push [',', ',', line]
-      pushTokens params 
-      asyncTokens.push ['=>', '=>', line, newLine: true]
-      asyncTokens.push ['INDENT', 2, line ]
-      indents.push 'CLOSE_CALLBACK'
-    for i in [0...length]
-      token = @tokens[i]
-      [tag, id, line] = token
-
-      switch tag
-        when '['
-          # '[' maybe async callback's params store the token until ']'
-          pushAsyncParams()
-          stacks = 0
-          while true
-            asyncParams.push token 
-            if token[0] is '['
-              stacks++
-            if token[0] is ']'
-              stacks--
-              if stacks == 0
-                break
-            ++i
-            token = @tokens[i]
-            unless token
-              break
-
-        when '='
-          # search asynchronous method
-          stacks = []
-          tempTokens = []
-          pairs = {}
-          pairs['('] = ')'
-          pairs['['] = ']'
-          pairs['{'] = '}'
-
-          equalToken = token
-          while true
-            ++i
-            token = @tokens[i]
-            break unless token
-            tempTokens.push token
-            if stacks.length is 0 and isAsyncToken(token)
-              # rewind to process async tag
-              --i
-              tempTokens.pop()
-              pushTokens tempTokens
-              break
-            else if token[0] in ['[', '(', '{']
-              stacks.push token
-            else if token[0] in [']', ')', '}']
-              # assume the parens always in pair
-              stacks.pop token
-            else if stacks.length > 0
-              # ignore identifier in parens
-            else if token[0] in ['IDENTIFIER', '.', '?.', '::', '@']
-              # ignore identifier which predence <= '.'
-            else
-              # no async tag found
-              pushAsyncParams()
-              asyncTokens.push equalToken
-              --i
-              tempTokens.pop()
-              pushTokens tempTokens
-              break
-
-        when 'IDENTIFIER', '@'
-          if token[0] is 'IDENTIFIER' and token[1] is '__async_end'
-            pushAsyncParams()
-            while closeCallback()
-              continue
-          else if isAsyncToken(token)
-            if asyncParams.length == 1 && asyncParams[0][0] == '@'
-              pushAsyncParams()
-            updateAsyncParams()
-            indents.push asyncParams
-            indents.push 'OPEN_CALLBACK'
-            asyncParams = []
-            m = token[1].match /(.*)\!$/
-            token = [token[0], m[1], token[2]]
-            pushToken token
-
-            if @tag(i+1) isnt 'CALL_START'
-              asyncTokens.push ['CALL_START', '(', line]
-              insertCallbackStart()
-          else
-            asyncParams.push token
-
-        when 'CALL_END'
-          pushAsyncParams()
-          if last(indents) isnt 'CALL_START'
-            throw new Error('CALL_END without CALL_START')
-          indents.pop()
-          if last(indents) is 'OPEN_CALLBACK'
-            insertCallbackStart()
-          else
-            pushToken token
-
-        when 'CALL_START'
-          indents.push 'CALL_START'
-          pushToken token
-
-        when 'INDENT'
-          indents.push 'INDENT'
-          pushToken token
-          
-        when 'OUTDENT'
-          pushAsyncParams()
-          while closeCallback()
-            continue
-          pushToken token
-          indents.pop()
-
-        when 'TERMINATOR'
-          len = asyncTokens.length
-          if asyncParams.length == 0 and asyncTokens[len-1] and asyncTokens[len-1][0] == 'INDENT'
-            #nothing
-          else
-            pushToken token
+    raise = (message) =>
+      throw new Error("Parse error on line #{line}: Async #{message}")
+    
+    while token = @tokens.shift()
+      line = token[LINE]
+      if name = getAsync token
+        async_tokens.push token
+        token[VALUE] = name
+        caller = popCaller()
+        if getTag() is '='
+          # async has parameters
+          # remove '=' which is unnesscary
+          async_tokens.pop()
+          params = popParams()
         else
-          pushToken token
+          params = []
+        pushTokens caller
+        stack.push params
+        stack.push 'PARAM_START'
 
-    pushAsyncParams()
-    while closeCallback()
-      continue
+        # async always a function
+        unless @tokens[0] and @tokens[0][0] is 'CALL_START'
+          @tokens.unshift ['CALL_END',   ')', line]
+        else
+          @tokens.shift()
+        async_tokens.push ['CALL_START', '(', line]
+      else
+        if token[TAG] is 'IDENTIFIER' and token[VALUE] is '__async_end'
+          token[TAG] = 'ASYNC_END'
 
-    @tokens = asyncTokens
-    true
+        if token[TAG] in ['CALL_END', 'OUTDENT', 'ASYNC_END']
+            continue while closeCallback()
+
+        switch token[TAG]
+          when 'CALL_START', 'INDENT'
+            stack.push token[TAG]
+            async_tokens.push token
+
+          when 'CALL_END'
+            status = stack.pop()
+            if status is 'PARAM_START'
+              # insert the callback
+              # CALL_END will be moved to another CALL_END, OUTDENT or ASYNC_END
+              params = stack.pop()
+              openCallback(params)
+              stack.push 'PARAM_END'
+            else if status isnt 'CALL_START'
+              raise("Unexpected 'CALL_END'")
+            else
+              async_tokens.push token
+
+          when 'OUTDENT'
+            if stack.pop() isnt 'INDENT'
+              raise("Unexpected 'OUTDENT'")
+            async_tokens.push token
+          
+          when 'TERMINATOR'
+            if getTag() isnt 'INDENT'
+              async_tokens.push token
+
+          when 'ASYNC_END'
+            # ignore
+            
+          else
+            async_tokens.push token
+
+    continue while closeCallback()
+    @tokens = async_tokens
 
   # Generate the indentation tokens, based on another token on the same line.
   indentation: (token) ->

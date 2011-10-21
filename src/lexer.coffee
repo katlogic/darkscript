@@ -633,7 +633,7 @@ IDENTIFIER = /// ^
 ///
 
 REGEX_MAGIC_IDENTIFIER = ///^ \\(&|~|[1-9]) $///
-ASYNC_END_IDENTIFIER   = /^([\-]{3,3})(\n|$)/
+ASYNC_END_IDENTIFIER   = /^([\-]{2,3})(\n|$)/
 REDO_IDENTIFIER = 'redo!'
 
 
