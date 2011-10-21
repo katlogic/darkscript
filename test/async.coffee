@@ -72,3 +72,21 @@ test 'async this', ->
   eq @, self
   eq a, 4
 
+
+test 'async end', ->
+  query = (n, callback) ->
+    callback(n + 1)
+  a = 1
+  a = query! a
+  ---
+  eq a, 1
+  a = query! a
+  ---
+  eq a, 1
+  a = query! a
+  ---
+  eq a, 1
+  a = query! a
+  eq a, 2
+  a = query! a
+  eq a, 3

@@ -50,6 +50,7 @@ exports.Lexer = class Lexer
     i = 0
     while @chunk = code.slice i
       i += @identifierToken() or
+           @asyncEndToken()      or
            @commentToken()    or
            @whitespaceToken() or
            @lineToken()       or
@@ -138,6 +139,14 @@ exports.Lexer = class Lexer
       @token tag, id
     @token ':', ':' if colon
     input.length
+
+  asyncEndToken: ->
+    if @tag() is 'TERMINATOR' and m = @chunk.match ASYNC_END_IDENTIFIER
+      @token 'IDENTIFIER', '__async_end'
+      @token 'TERMINATOR', "\n"
+      m[1].length
+    else
+      0
 
   # Matches numbers, including decimals, hex, and exponential notation.
   # Be careful not to interfere with ranges-in-progress.
@@ -606,7 +615,7 @@ COFFEE_KEYWORDS = COFFEE_KEYWORDS.concat COFFEE_ALIASES
 RESERVED = [
   'case', 'default', 'function', 'var', 'void', 'with'
   'const', 'let', 'enum', 'export', 'import', 'native'
-  '__hasProp', '__extends', '__slice', '__bind', '__indexOf', '__matches'
+  '__hasProp', '__extends', '__slice', '__bind', '__indexOf', '__matches', '__async_end'
 ]
 
 # The superset of both JavaScript keywords and reserved words, none of which may
@@ -624,6 +633,7 @@ IDENTIFIER = /// ^
 ///
 
 REGEX_MAGIC_IDENTIFIER = ///^ \\(&|~|[1-9]) $///
+ASYNC_END_IDENTIFIER   = /^([\-]{3,3})(\n|$)/
 REDO_IDENTIFIER = 'redo!'
 
 

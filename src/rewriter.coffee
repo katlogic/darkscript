@@ -334,7 +334,11 @@ class exports.Rewriter
               break
 
         when 'IDENTIFIER', '@'
-          if isAsyncToken(token)
+          if token[0] is 'IDENTIFIER' and token[1] is '__async_end'
+            pushAsyncParams()
+            while closeCallback()
+              continue
+          else if isAsyncToken(token)
             if asyncParams.length == 1 && asyncParams[0][0] == '@'
               pushAsyncParams()
             updateAsyncParams()
