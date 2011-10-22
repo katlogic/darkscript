@@ -216,15 +216,16 @@ class exports.Rewriter
     PARENS_START = {'[', '(', 'CALL_START', '{'}
     PARENS_END   = {']', ')', 'CALL_END',   '}'}
     IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
+    ASYNC_START  = {'[', '(', '(', 'CALL_START', 'INDENT'}
+    ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'ASYNC_END'}
 
     stack        = []
     async_tokens = []
     line         = 0
 
     getToken = (n = -1) =>
-      if async_tokens.length
-        if n < 0 
-          n += async_tokens.length
+      n += async_tokens.length if n < 0 
+      if 0 <= n < async_tokens.length
         async_tokens[n]
       else
         null
@@ -246,14 +247,9 @@ class exports.Rewriter
       level  = 0
       while token = getToken()
         tag = token[TAG]
-        if PARENS_END[tag]
-          ++level
-        else if PARENS_START[tag]
-          --level
-        else if IDENT[tag]
-        else if level > 0
-        else
-          break
+        break   if !IDENT[tag] and level is 0
+        ++level if PARENS_END[tag]
+        --level if PARENS_START[tag]
         async_tokens.pop()
         caller.unshift token
       caller
@@ -264,20 +260,16 @@ class exports.Rewriter
       if getTag() is ']'
         while token = getToken()
           tag = token[TAG]
-          if PARENS_END[tag]
-            ++level
-          else if PARENS_START[tag]
-            --level
+          ++level if PARENS_END[tag]
+          --level if PARENS_START[tag]
           async_tokens.pop()
           params.unshift token
-          if level == 0
-            break
+          break   if level == 0
         params
       else
         while token = getToken()
           tag = token[TAG]
-          unless IDENT[tag]
-            break
+          break unless IDENT[tag]
           async_tokens.pop()
           params.unshift token
         params
@@ -291,11 +283,11 @@ class exports.Rewriter
     openCallback  = (params) =>
       if params.length and params[0][0] is '['
         # Multi parameters
-        params[0]                = ['PARAM_START', '(', line]
-        params[params.length - 1] = ['PARAM_END', ')', line]
+        params[0]                 = ['PARAM_START', '(', line]
+        params[params.length - 1] = ['PARAM_END',   ')', line]
       else
         params.unshift ['PARAM_START', '(', line]
-        params.push    ['PARAM_END', ')', line]
+        params.push    ['PARAM_END',   ')', line]
 
       if getTag() isnt 'CALL_START'
         async_tokens.push [',', ',', line]
@@ -336,24 +328,19 @@ class exports.Rewriter
         stack.push 'PARAM_START'
 
         # async always a function
-        unless @tokens[0] and @tokens[0][0] is 'CALL_START'
-          @tokens.unshift ['CALL_END',   ')', line]
-        else
+        if @tokens[0] and @tokens[0][0] is 'CALL_START'
           @tokens.shift()
+        else
+          @tokens.unshift ['CALL_END',   ')', line]
         async_tokens.push ['CALL_START', '(', line]
       else
-        if token[TAG] is 'IDENTIFIER' and token[VALUE] is '__async_end'
-          token[TAG] = 'ASYNC_END'
+        tag = token[TAG]
+        # Modify __asnyc_end
+        if tag is 'IDENTIFIER' and token[VALUE] is '__async_end'
+          tag = 'ASYNC_END'
 
-        if token[TAG] in ['CALL_END', 'OUTDENT', 'ASYNC_END']
+        if ASYNC_END[tag]
             continue while closeCallback()
-
-        switch token[TAG]
-          when 'CALL_START', 'INDENT'
-            stack.push token[TAG]
-            async_tokens.push token
-
-          when 'CALL_END'
             status = stack.pop()
             if status is 'PARAM_START'
               # insert the callback
@@ -361,23 +348,17 @@ class exports.Rewriter
               params = stack.pop()
               openCallback(params)
               stack.push 'PARAM_END'
-            else if status isnt 'CALL_START'
-              raise("Unexpected 'CALL_END'")
-            else
-              async_tokens.push token
+              continue
 
-          when 'OUTDENT'
-            if stack.pop() isnt 'INDENT'
-              raise("Unexpected 'OUTDENT'")
-            async_tokens.push token
-          
+        if ASYNC_START[tag]
+          stack.push tag
+
+        switch tag
           when 'TERMINATOR'
             if getTag() isnt 'INDENT'
               async_tokens.push token
-
           when 'ASYNC_END'
-            # ignore
-            
+            # ignore ASYNC_END
           else
             async_tokens.push token
 
