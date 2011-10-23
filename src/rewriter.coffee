@@ -216,7 +216,7 @@ class exports.Rewriter
     PARENS_START = {'[', '(', 'CALL_START', '{'}
     PARENS_END   = {']', ')', 'CALL_END',   '}'}
     IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
-    ASYNC_START  = {'[', '(', '(', 'CALL_START', 'INDENT'}
+    ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT'}
     ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'ASYNC_END'}
 
     stack        = []
