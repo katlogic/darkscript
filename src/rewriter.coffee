@@ -269,7 +269,7 @@ class exports.Rewriter
       else
         while token = getToken()
           tag = token[TAG]
-          break unless IDENT[tag]
+          break unless IDENT[tag] or tag is ','
           async_tokens.pop()
           params.unshift token
         params

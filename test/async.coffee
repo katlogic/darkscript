@@ -90,3 +90,11 @@ test 'async end', ->
   eq a, 2
   a = query! a
   eq a, 3
+
+test 'async without brackets', ->
+  a = (cb) ->
+    cb 'a', 'b'
+
+  a, b = a!
+  eq a, 'a'
+  eq b, 'b'
