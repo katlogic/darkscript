@@ -50,7 +50,7 @@ exports.Lexer = class Lexer
     i = 0
     while @chunk = code.slice i
       i += @identifierToken() or
-           @asyncEndToken()      or
+           @asyncEndToken()   or
            @commentToken()    or
            @whitespaceToken() or
            @lineToken()       or

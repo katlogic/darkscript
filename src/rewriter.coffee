@@ -18,6 +18,7 @@ class exports.Rewriter
   # like this. The order of these passes matters -- indentation must be
   # corrected before implicit parentheses can be wrapped around blocks of code.
   rewrite: (@tokens) ->
+    @rewriteAsyncCondition()
     @removeLeadingNewlines()
     @removeMidExpressionNewlines()
     @closeOpenCalls()
@@ -208,20 +209,10 @@ class exports.Rewriter
         original[0] = 'POST_' + original[0] if token[0] isnt 'INDENT'
       1
 
-  rewriteAsynchronous: ->
-    TAG   = 0
-    VALUE = 1
-    LINE  = 2
 
-    PARENS_START = {'[', '(', 'CALL_START', '{'}
-    PARENS_END   = {']', ')', 'CALL_END',   '}'}
-    IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
-    ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT'}
-    ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'ASYNC_END'}
+  asyncFunctions: (stack, async_tokens) ->
 
-    stack        = []
-    async_tokens = []
-    line         = 0
+    line  = 0
 
     getToken = (n = -1) =>
       n += async_tokens.length if n < 0 
@@ -307,11 +298,144 @@ class exports.Rewriter
         stack.push status
         false
 
+    setLine = (new_line) =>
+      line = new_line
+
     raise = (message) =>
       throw new Error("Parse error on line #{line}: Async #{message}")
-    
+
+    {
+      TAG, VALUE, LINE, PARENS_START, PARENS_END, IDENT, ASYNC_START, ASYNC_END,
+      getToken, getTag, getAsync, 
+      popCaller, popParams, pushTokens, openCallback, closeCallback,
+      raise, setLine
+    }
+
+  async_id: ->
+    @async_id_num = 0 unless @async_id_num?
+    "_asfn" + @async_id_num++
+
+  rewriteAsyncCondition: ->
+    stack        = []
+    async_tokens = []
+    line         = 0
+
+    {getAsync} = @asyncFunctions()
+    shiftTokensUntil = (tokens, condition) =>
+      result = []
+      while token = tokens.shift()
+        result.push token
+        if condition(token)
+          break
+      result
+
+    shiftConditionBlock = (tokens) =>
+      level = 0
+      shiftTokensUntil tokens, (token) =>
+        tag = token[TAG]
+        name = token[VALUE]
+        ++level if ASYNC_START[tag]
+        --level if ASYNC_END[tag]
+        tag is 'OUTDENT' and level is 0
+
+    shiftNextBlock = (tokens) =>
+      level = 0
+      shiftTokensUntil tokens, (token) =>
+        tag = token[TAG]
+        name = token[VALUE]
+        if ASYNC_END[tag] and level is 0
+          tokens.unshift token
+          return true
+        ++level if ASYNC_START[tag]
+        --level if ASYNC_END[tag]
+        false
+
+    tag = (tokens, idx = -1) ->
+      idx += tokens.length if idx < 0
+      if 0 <= idx < tokens.length
+        tokens[idx][TAG]
+      else
+        null
+
+    smartPush = =>
+      args = Array::slice.call arguments
+      dest = args.shift()
+      for tokens in args
+        if tokens.length
+          if tokens[0].substr
+            dest.push tokens
+          else
+            dest.push token for token in tokens
+      @
+
+
     while token = @tokens.shift()
       line = token[LINE]
+      if (name = getAsync token) and name in ['if', 'unless']
+        token[VALUE] = name
+        token[TAG]   = 'IF'
+
+        condition = shiftConditionBlock(@tokens)
+        next      = shiftNextBlock(@tokens)
+        old_tokens = @tokens
+        @tokens = next
+        @rewriteAsyncCondition()
+        next = @tokens
+        @tokens = old_tokens
+        condition.unshift token
+        func_name = @async_id()
+
+        next_tokens = [
+          ["IDENTIFIER", func_name, line],
+          ["=", "=", line]
+          ["=>", "=>", line],
+          ["INDENT", 2, line],
+        ]
+
+        next.shift() if tag(next, 0) is 'TERMINATOR'
+        next.pop()   if tag(next, -1) is 'TERMINATOR'
+        smartPush next_tokens,
+          next,
+          ["OUTDENT", 2, line],
+          ["TERMINATOR", "\n", line]
+
+        call_func = [
+          ["TERMINATOR", "\n", line]
+          ["IDENTIFIER", func_name, line],
+          ["CALL_START", "(", line],
+          [')', ')', line]
+        ]
+
+        outdent = condition.pop()
+        smartPush condition,
+          call_func
+          outdent
+
+        smartPush async_tokens,
+          next_tokens,
+          condition,
+          ['ELSE', 'else', line], 
+          ["INDENT", 2, line],
+          call_func,
+          ["OUTDENT", 2, line]
+      else
+        async_tokens.push token
+
+    @tokens = async_tokens
+
+  rewriteAsynchronous: ->
+    stack        = []
+    async_tokens = []
+    line         = 0
+
+    {
+      getToken, getTag, getAsync, 
+      popCaller, popParams, pushTokens, openCallback, closeCallback,
+      raise, setLine
+    } = @asyncFunctions(stack, async_tokens)
+
+    while token = @tokens.shift()
+      line = setLine(token[LINE])
       if name = getAsync token
         async_tokens.push token
         token[VALUE] = name
@@ -426,3 +550,14 @@ SINGLE_CLOSERS   = ['TERMINATOR', 'CATCH', 'FINALLY', 'ELSE', 'OUTDENT', 'LEADIN
 
 # Tokens that end a line.
 LINEBREAKS       = ['TERMINATOR', 'INDENT', 'OUTDENT']
+
+
+PARENS_START = {'[', '(', 'CALL_START', '{'}
+PARENS_END   = {']', ')', 'CALL_END',   '}'}
+IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
+ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT'}
+ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'ASYNC_END'}
+
+TAG   = 0
+VALUE = 1
+LINE  = 2
