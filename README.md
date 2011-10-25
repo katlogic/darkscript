@@ -25,6 +25,7 @@ Input:
       @va = obj.foo_2_1! 'pa', 'pb'
       # @ is inherited
       [va, @vb] = obj::foo_2_2! 'pa', 'pb'
+      va, @vb = without_brackets
 
     # another async block
     do ->
@@ -43,10 +44,17 @@ Output:
     (function() {
       var _this = this;
       return foo_0_0(function() {
-        return obj.foo_2_1('pa', 'pb', function(va) {
-          _this.va = va;
-          return obj.prototype.foo_2_2('pa', 'pb', function(va, vb) {
-            _this.vb = vb;
+        return obj.foo_2_1('pa', 'pb', function(_asp0) {
+          _this.va = _asp0;
+          return obj.prototype.foo_2_2('pa', 'pb', function(_asp0, _asp1) {
+            var va;
+            va = _asp0;
+            _this.vb = _asp1;
+            return without_brackets(function(_asp0, _asp1) {
+              var vb;
+              va = _asp0;
+              return vb = _asp1;
+            });
           });
         });
       });
@@ -54,15 +62,21 @@ Output:
 
     (function() {
       var _this = this;
-      return this.foo('pa', function(va) {
-        _this.va = va;
+      return this.foo('pa', function(_asp0) {
+        return _this.va = _asp0;
       });
     })();
 
     if (true) {
-      foo(function(va) {});
+      foo(function(_asp0) {
+        var va;
+        return va = _asp0;
+      });
     } else {
-      foo(function(vb) {});
+      foo(function(_asp0) {
+        var vb;
+        return vb = _asp0;
+      });
     }
 
 #### Theory
