@@ -159,13 +159,52 @@ There are two binary file **toffee** and **tcons** relative to coffee and cake
 More Aboute Async Syntax
 ========================
 
+### Async Condition if! unless!
+
+Input
+
+    get = (cb) ->
+      cb 'hello'
+    a = null
+    unless! a
+      a = get!
+    console.info a
+
+Output:
+
+    var a, get, _asfn0;
+    var _this = this;
+
+    get = function(cb) {
+      return cb('hello');
+    };
+
+    a = null;
+
+    _asfn0 = function() {
+      return console.info(a);
+    };
+
+    if (!a) {
+      get(function(_asp0) {
+        a = _asp0;
+        return _asfn0();
+      });
+    } else {
+      _asfn0();
+    }
+
+get! and unless! are asynchronous, the example above will print 'hello'
+
 ### Asnyc call with return
+
 
 Input:
 
     net = require 'net'
 
     # [ and ] is not nesscary, add brackets to make code more readable
+    # recommand use standard way if the asynchronous has returns
     server = [socket] = net.createServer!
     socket.write "Echo server\r\n"
     socket.pipe socket

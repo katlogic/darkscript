@@ -251,8 +251,8 @@ class exports.Rewriter
       if getTag() is ']'
         while token = getToken()
           tag = token[TAG]
-          ++level if PARENS_END[tag]
-          --level if PARENS_START[tag]
+          ++level if PARENS_START[tag]
+          --level if PARENS_END[tag]
           async_tokens.pop()
           params.unshift token
           break   if level == 0
@@ -283,9 +283,76 @@ class exports.Rewriter
       if getTag() isnt 'CALL_START'
         async_tokens.push [',', ',', line]
 
-      pushTokens params
+      #pushTokens params
+
+      # replace identifier name to template name
+      # assign template to identifier name
+      # to make any 
+
+      params = params.slice(1, params.length-1)
+
+      # extract params to
+      # [
+      #   [identifier, assignment, ...]
+      #   ...
+      # ]
+      param_blocks =[]
+      assignment = []
+      param = comma
+      ident = []
+      level = 0
+      is_ident = true
+      push_param = ->
+        param_block = []
+        param_block.push ident
+        param_block.push param for param in assignment
+        param_block.push comma if comma
+        param_blocks.push param_block
+      while param = params.shift()
+        tag = param[TAG]
+        ++level if PARENS_END[tag]
+        --level if PARENS_START[tag]
+        if level is 0
+          if tag is ','
+            comma = param
+            push_param()
+            comma = null
+            ident = []
+            assignment = []
+            is_ident = true
+          else
+            unless IDENT[tag]
+              is_ident = false
+            if is_ident
+              ident.push param
+            else
+              assignment.push param
+      push_param() if ident.length
+      params = param_blocks
+
+      replacements = []
+      async_tokens.push ['PARAM_START', '(', line]
+      async_id = 0
+      for param in params
+        new_ident = ['IDENTIFIER', '_asp' + async_id++ , line]
+        replacements.push [new_ident, param[0]]
+        param[0] = new_ident
+        pushTokens param
+
+      async_tokens.push ['PARAM_END',   ')', line]
+
       async_tokens.push ['=>', '=>', line]
       async_tokens.push ['INDENT', 2, line]
+      for replacement in replacements
+        pushTokens replacement[1]
+        pushTokens  [
+          ['=', '='],
+        ]
+        pushTokens [
+          replacement[0],
+          ['TERMINATOR', "\n"]
+        ]
+      @
 
     closeCallback = =>
       status = stack.pop()
@@ -340,7 +407,7 @@ class exports.Rewriter
 
     shiftNextBlock = (tokens) =>
       level = 0
-      shiftTokensUntil tokens, (token) =>
+      result = shiftTokensUntil tokens, (token) =>
         tag = token[TAG]
         name = token[VALUE]
         if ASYNC_END[tag] and level is 0
@@ -349,6 +416,8 @@ class exports.Rewriter
         ++level if ASYNC_START[tag]
         --level if ASYNC_END[tag]
         false
+      result.pop()
+      result
 
     tag = (tokens, idx = -1) ->
       idx += tokens.length if idx < 0
@@ -367,7 +436,6 @@ class exports.Rewriter
           else
             dest.push token for token in tokens
       @
-
 
     while token = @tokens.shift()
       line = token[LINE]
@@ -552,11 +620,11 @@ SINGLE_CLOSERS   = ['TERMINATOR', 'CATCH', 'FINALLY', 'ELSE', 'OUTDENT', 'LEADIN
 LINEBREAKS       = ['TERMINATOR', 'INDENT', 'OUTDENT']
 
 
-PARENS_START = {'[', '(', 'CALL_START', '{'}
-PARENS_END   = {']', ')', 'CALL_END',   '}'}
+PARENS_START = {'[', '(', 'CALL_START', '{', 'INDEX_START'}
+PARENS_END   = {']', ')', 'CALL_END',   '}', 'INDEX_END'}
 IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
-ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT'}
-ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'ASYNC_END'}
+ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT',  'INDEX_START'}
+ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'INDEX_END', 'ASYNC_END'}
 
 TAG   = 0
 VALUE = 1

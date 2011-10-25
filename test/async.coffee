@@ -79,17 +79,17 @@ test 'async end', ->
   a = 1
   a = query! a
   ---
-  eq a, 1
-  a = query! a
-  ---
-  eq a, 1
-  a = query! a
-  ---
-  eq a, 1
-  a = query! a
   eq a, 2
   a = query! a
+  ---
   eq a, 3
+  a = query! a
+  ---
+  eq a, 4
+  a = query! a
+  eq a, 5
+  a = query! a
+  eq a, 6
 
 test 'async without brackets', ->
   a = (cb) ->
@@ -98,3 +98,16 @@ test 'async without brackets', ->
   a, b = a!
   eq a, 'a'
   eq b, 'b'
+
+test 'async condition', ->
+  set = (cb) ->
+    cb 'hello'
+  reset = (cb) ->
+    cb 'world'
+  a = null
+  unless! a
+    a = set!
+  eq a, 'hello'
+  if! a
+    a = reset!
+  eq 'world'
