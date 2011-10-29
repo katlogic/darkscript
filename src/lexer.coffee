@@ -153,8 +153,11 @@ exports.Lexer = class Lexer
   numberToken: ->
     return 0 unless match = NUMBER.exec @chunk
     number = match[0]
+    lexedLength = number.length
+    if binaryLiteral = /0b([01]+)/.exec number
+      number = (parseInt binaryLiteral[1], 2).toString()
     @token 'NUMBER', number
-    number.length
+    lexedLength
 
   # Matches strings, including multi-line strings. Ensures that quotation marks
   # are balanced within the string's contents, and within nested interpolations.
@@ -639,6 +642,7 @@ REDO_IDENTIFIER = 'redo!'
 
 NUMBER     = ///
   ^ 0x[\da-f]+ |                              # hex
+  ^ 0b[01]+ |                              # binary
   ^ \d*\.?\d+ (?:e[+-]?\d+)?  # decimal
 ///i
 

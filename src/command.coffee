@@ -17,11 +17,11 @@ CoffeeScript   = require './coffee-script'
 helpers.extend CoffeeScript, new EventEmitter
 
 printLine = (line) -> process.stdout.write line + '\n'
-printWarn = (line) -> process.binding('stdio').writeError line + '\n'
+printWarn = (line) -> process.stderr.write line + '\n'
 
 # The help banner that is printed when `coffee` is called without arguments.
 BANNER = '''
-  Usage: toffee [options] path/to/script.coffee
+  Usage: toffee [options] path/to/script.toffee
   
   If called without options, `toffee` will run your script.
          '''
