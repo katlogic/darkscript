@@ -163,19 +163,9 @@ runTests = (CoffeeScript) ->
   passedTests = 0
   failures    = []
 
-  # Make "global" reference available to tests
-  global.global = global
-
-  # Mix in the assert module globally, to make it available for tests.
-  addGlobal = (name, func) ->
-    global[name] = ->
-      passedTests += 1
-      func arguments...
-
-  addGlobal name, func for name, func of require 'assert'
+  global[name] = func for name, func of require 'assert'
 
   # Convenience aliases.
-  global.eq = global.strictEqual
   global.CoffeeScript = CoffeeScript
 
   # Our test helper function for delimiting different test cases.
@@ -183,26 +173,29 @@ runTests = (CoffeeScript) ->
     try
       fn.test = {description, currentFile}
       fn.call(fn)
+      ++passedTests
     catch e
       e.description = description if description?
       e.source      = fn.toString() if fn.toString?
       failures.push filename: currentFile, error: e
 
-  # A recursive functional equivalence helper; uses egal for testing equivalence.
   # See http://wiki.ecmascript.org/doku.php?id=harmony:egal
-  arrayEqual = (a, b) ->
+  egal = (a, b) ->
     if a is b
-      # 0 isnt -0
       a isnt 0 or 1/a is 1/b
-    else if a instanceof Array and b instanceof Array
-      return no unless a.length is b.length
-      return no for el, idx in a when not arrayEqual el, b[idx]
-      yes
     else
-      # NaN is NaN
       a isnt a and b isnt b
 
-  global.arrayEq = (a, b, msg) -> ok arrayEqual(a,b), msg
+  # A recursive functional equivalence helper; uses egal for testing equivalence.
+  arrayEgal = (a, b) ->
+    if egal a, b then yes
+    else if a instanceof Array and b instanceof Array
+      return no unless a.length is b.length
+      return no for el, idx in a when not arrayEgal el, b[idx]
+      yes
+
+  global.eq      = (a, b, msg) -> ok egal(a, b), msg
+  global.arrayEq = (a, b, msg) -> ok arrayEgal(a,b), msg
 
   # When all the tests have run, collect and print errors.
   # If a stacktrace is available, output the compiled function source.
