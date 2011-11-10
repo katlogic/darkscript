@@ -21,7 +21,7 @@ else if require.registerExtension
   require.registerExtension '.coffee', (content) -> compile content
 
 # The current CoffeeScript version number.
-exports.VERSION = '1.1.3-3'
+exports.VERSION = '1.1.3-4'
 
 # Words that cannot be used as identifiers in CoffeeScript code
 exports.RESERVED = RESERVED
@@ -64,9 +64,7 @@ exports.run = (code, options) ->
   mainModule.moduleCache and= {}
 
   # Assign paths for node_modules loading
-  if process.binding('natives').module
-    {Module} = require 'module'
-    mainModule.paths = Module._nodeModulePaths path.dirname options.filename
+  mainModule.paths = require('module')._nodeModulePaths path.dirname options.filename
 
   # Compile.
   if path.extname(mainModule.filename) isnt '.coffee' or require.extensions
