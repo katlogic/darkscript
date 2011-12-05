@@ -1,0 +1,34 @@
+# Cascading
+# -------
+
+test "cascading", ->
+  a = {}
+  a.{a: 'a', b: 'b', c: 'c'}
+  eq a.a, 'a'
+  eq a.b, 'b'
+  eq a.c, 'c'
+
+test "returned cascading", ->
+  a = {}
+  b = 2
+  c = 3
+  a_ref = a.{b, c}
+  eq a_ref.b, 2
+  eq a_ref.c, 3
+
+test "nested cascading", ->
+  a = {}
+  b = {}
+  a.{b: b.{a: 'a'}}
+  eq a.b.a, 'a'
+  eq b.a, 'a'
+
+test "nested cascading 2", ->
+  a = {}
+  a.
+    b: 3
+    c: ->
+      'c'
+  eq a.c(), 'c'
+
+

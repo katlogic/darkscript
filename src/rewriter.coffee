@@ -28,6 +28,7 @@ class exports.Rewriter
     @addImplicitBraces()
     @addImplicitParentheses()
     @rewriteAsynchronous()
+    @cascade()
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -210,6 +211,136 @@ class exports.Rewriter
       1
 
 
+  toffeeHelpers: ->
+    # shift from tokens until condition is true
+    # the result contains the all shifted tokens with the same order
+    shiftTokensUntil = (tokens, condition) =>
+      result = []
+      while token = tokens.shift()
+        result.push token
+        if condition(token)
+          break
+      result
+
+    popTokensUntil = (tokens, condition) =>
+      result = []
+      while token = tokens.pop()
+        result.unshift token
+        if condition(token)
+          break
+      result
+
+    shiftBlockTokensUntil = (tokens, condition, grab=true) =>
+      level = 0
+      found = false
+      result = shiftTokensUntil tokens, (token) =>
+        tag = token[TAG]
+        name = token[VALUE]
+        --level if ASYNC_END[tag]
+        return found = true if level < 0
+        ++level if ASYNC_START[tag]
+        found = condition(token) and level is 0
+
+      if found and !grab
+        tokens.unshift result.pop()
+      result
+
+    popBlockTokensUntil = (tokens, condition, grab=true) =>
+      level = 0
+      found = false
+      result = popTokensUntil tokens, (token) =>
+        tag = token[TAG]
+        name = token[VALUE]
+        --level if ASYNC_START[tag]
+        return found = true if level < 0
+        ++level if ASYNC_END[tag]
+        found = condition(token) and level is 0
+
+      if found and !grab
+        tokens.push result.shift()
+      result
+
+    shiftBlockTokens = (tokens, keys, grab = true) =>
+      if typeof keys is 'string'
+        keys = [keys]
+
+      result = shiftBlockTokensUntil tokens, (token) =>
+        found = token[TAG] in keys
+      , grab
+
+    popBlockTokens = (tokens, keys, grab = true) =>
+      if typeof keys is 'string'
+        keys = [keys]
+
+      popBlockTokensUntil tokens, (token) =>
+        found = token[TAG] in keys
+      , grab
+
+    # shift until met OUTDENT
+    shiftConditionBlock = (tokens) =>
+      shiftBlockTokensUntil tokens, (token) =>
+        token[TAG] is 'OUTDENT'
+
+    # shift a block such as {...}, [...]
+    shiftNextBlock = (tokens) =>
+      shiftBlockTokensUntil tokens, (token) =>
+        ASYNC_END[token[TAG]]
+
+    shiftParam = (tokens) =>
+      found = false
+      result = shiftBlockTokensUntil tokens, (token) =>
+        found = token[TAG] in [',', 'TERMINATOR']
+      tokens.unshift result.pop() if found
+      result
+
+    # get tag in tokens
+    tag = (tokens, idx = -1) ->
+      idx += tokens.length if idx < 0
+      if 0 <= idx < tokens.length
+        tokens[idx][TAG]
+      else
+        null
+
+    # if args[0] is array  then push tokens
+    # if args[0] is string then push token
+    smartPush = (args...) =>
+      dest = args.shift()
+      for tokens in args
+        if tokens.length
+          if tokens[0].substr
+            dest.push tokens
+          else
+            dest.push token for token in tokens
+      @
+
+    getToken = (tokens, n = -1) =>
+      n += tokens.length if n < 0 
+      if 0 <= n < tokens.length
+        tokens[n]
+      else
+        null
+
+    # pop caller from tokens
+    popCaller = (tokens)=>
+      caller = []
+      level  = 0
+      while token = getToken(tokens)
+        tag = token[TAG]
+        break   if !IDENT[tag] and level is 0
+        ++level if PARENS_END[tag]
+        --level if PARENS_START[tag]
+        tokens.pop()
+        caller.unshift token
+      caller
+
+    getTag = tag
+    {
+      shiftTokensUntil, shiftConditionBlock, shiftNextBlock, shiftParam, shiftBlockTokens,
+      popBlockTokensUntil,
+      tag, getTag, getToken, popCaller,
+      smartPush
+    }
+
   asyncFunctions: (stack, async_tokens) ->
 
     line  = 0
@@ -382,60 +513,14 @@ class exports.Rewriter
     @async_id_num = 0 unless @async_id_num?
     "_asfn" + @async_id_num++
 
+
   rewriteAsyncCondition: ->
     stack        = []
     async_tokens = []
     line         = 0
 
     {getAsync} = @asyncFunctions()
-    shiftTokensUntil = (tokens, condition) =>
-      result = []
-      while token = tokens.shift()
-        result.push token
-        if condition(token)
-          break
-      result
-
-    shiftConditionBlock = (tokens) =>
-      level = 0
-      shiftTokensUntil tokens, (token) =>
-        tag = token[TAG]
-        name = token[VALUE]
-        ++level if ASYNC_START[tag]
-        --level if ASYNC_END[tag]
-        tag is 'OUTDENT' and level is 0
-
-    shiftNextBlock = (tokens) =>
-      level = 0
-      result = shiftTokensUntil tokens, (token) =>
-        tag = token[TAG]
-        name = token[VALUE]
-        if ASYNC_END[tag] and level is 0
-          tokens.unshift token
-          return true
-        ++level if ASYNC_START[tag]
-        --level if ASYNC_END[tag]
-        false
-      result.pop()
-      result
-
-    tag = (tokens, idx = -1) ->
-      idx += tokens.length if idx < 0
-      if 0 <= idx < tokens.length
-        tokens[idx][TAG]
-      else
-        null
-
-    smartPush = =>
-      args = Array::slice.call arguments
-      dest = args.shift()
-      for tokens in args
-        if tokens.length
-          if tokens[0].substr
-            dest.push tokens
-          else
-            dest.push token for token in tokens
-      @
+    {shiftTokensUntil, shiftConditionBlock, shiftNextBlock, tag, smartPush} = @toffeeHelpers()
 
     while token = @tokens.shift()
       line = token[LINE]
@@ -557,6 +642,125 @@ class exports.Rewriter
     continue while closeCallback()
     @tokens = async_tokens
 
+  
+  # Cascade
+  new_caller_id: ->
+    @caller_id_num = 0 unless @caller_id_num?
+    "_asid" + @caller_id_num++
+
+  cascade: (force_complex = false)->
+    TAG  = 0
+    VALUE = 1
+    LINE = 2
+    new_tokens = []
+    {smartPush, getTag, getToken, popCaller, shiftNextBlock, shiftParam, shiftBlockTokens, popBlockTokensUntil} = @toffeeHelpers()
+    while token = @tokens[TAG]
+      if token[0] is '{' and getTag(new_tokens) is '.'
+        params =  shiftNextBlock(@tokens)
+        comma = new_tokens.pop()
+        caller = popBlockTokensUntil new_tokens, (token)->
+          !POP_IDENT[token[TAG]]
+        , false
+        if force_complex and new_tokens.length == 0
+          complex = true
+        else if new_tokens.length == 0 || getTag(new_tokens) in ['TERMINATOR', 'INDENT']
+          complex = false
+        else
+          complex = true
+
+        lineno = token[LINE]
+        # remone '{' and '}'
+        params.pop()
+        params.shift()
+
+        if getTag(params, 0) is 'INDENT'
+          params.pop()
+          params.shift()
+
+        new_params = []
+        while params.length
+          key = shiftBlockTokens params, [',', ':'], false
+          colon = params.shift()
+          if colon and colon[TAG] is ':'
+            value = shiftParam(params)
+            comma = params.shift()
+          else
+            comma = colon
+            colon = [':', ':', key[TAG]]
+            value = [key[TAG], key[VALUE], key[LINE]]
+
+          old_tokens = @tokens
+          @tokens    = value
+          @cascade(true)
+          value      = @tokens
+          @tokens    = old_tokens
+
+          new_params.push [key, value]
+
+        if complex
+          smartPush new_tokens, 
+            ['IDENTIFIER', '__cascade', lineno],
+            ['CALL_START', '(', lineno],
+            caller,
+            [',', ',', lineno],
+
+          for param in new_params
+            [key, value] = param
+            # convert IDENTIFIER to String use for cascading
+            if key.length is 1
+              key = key[0]
+            if key[TAG] is 'IDENTIFIER'
+              key = [ 'STRING',JSON.stringify(key[VALUE]), key[LINE] ]
+
+            smartPush new_tokens,
+              key,
+              [',', ',', key[LINE]],
+              value
+              [',', ',', key[LINE]],
+
+          # remove last ','
+          new_tokens.pop()
+          smartPush new_tokens,
+            ['CALL_END', ')', lineno]
+
+        else
+          # the caller is complex expression
+          if caller.length > 1 and new_params.length > 1
+            lineno = caller[0][LINE]
+            new_caller = ['IDENTIFIER', @new_caller_id(), lineno]
+            smartPush new_tokens,
+              new_caller,
+              ['=', '=', lineno],
+              caller,
+              ['TERMINATOR', "\n", lineno]
+            caller = new_caller
+
+          for param in new_params
+            [key, value] = param
+            lineno = key[LINE]
+            if key.length == 1 and key[0][TAG] is 'IDENTIFIER'
+              key = [
+                ['.', '.', lineno],
+                key[0]
+              ]
+            else
+              # the key is complex use [...] instead of .
+              key.unshift ['INDEX_START', '[', lineno]
+              key.push ['INDEX_END', ']', lineno]
+
+            smartPush new_tokens,
+              caller,
+              key,
+              ['=', '=', lineno],
+              value,
+              ['TERMINATOR', "\n", lineno]
+
+      else
+        new_tokens.push @tokens.shift()
+
+    @tokens = new_tokens
+
+
   # Generate the indentation tokens, based on another token on the same line.
   indentation: (token) ->
     [['INDENT', 2, token[2]], ['OUTDENT', 2, token[2]]]
@@ -623,6 +827,8 @@ LINEBREAKS       = ['TERMINATOR', 'INDENT', 'OUTDENT']
 PARENS_START = {'[', '(', 'CALL_START', '{', 'INDEX_START'}
 PARENS_END   = {']', ')', 'CALL_END',   '}', 'INDEX_END'}
 IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
+# ident use for greedy pop
+POP_IDENT = {'IDENTIFIER', '.', '?.', '::', '@', '[', '(', '{', 'CALL_START', 'INDENT',  'INDEX_START'}
 ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT',  'INDEX_START'}
 ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'INDEX_END', 'ASYNC_END'}
 

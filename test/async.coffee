@@ -110,4 +110,4 @@ test 'async condition', ->
   eq a, 'hello'
   if! a
     a = reset!
-  eq 'world'
+  eq a, 'world'

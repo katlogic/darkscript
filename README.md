@@ -12,6 +12,7 @@ Additional Features
 2. String In Symbol Style
 3. RegExp operator =~
 4. RegExp Magic Identifier ```\& \~ \1..9```
+5. Cascading
 
 ### 1. Asynchronous
 
@@ -161,6 +162,89 @@ Output:
         console.info(__matches[1], __matches[2]);
       }
     }).call(this);
+
+### 5. Cascading ###
+
+Grammar: Identifier . Object
+
+Example:
+
+    global.
+        FOO: 1
+        BAR: 2
+        BAZ: 3
+
+    obj = {}
+    obj.{FOO, BAR, BAZ: 'baz'}
+    console.info obj
+
+    obj = {}
+    obj.info = {}
+    obj.info.
+        foo: 'foo'
+        bar: ->
+            console.info 'bar'
+
+    # it will use __cascade function the the assigment as param in function.
+    console.info obj.{FOO, BAR: 'bar'}
+
+    # when use {...} the object will become more powerful, any expression could be used as key.
+    obj = {}
+    obj.{
+      a: "b"
+      "a" + "b": "ab"
+    }
+    console.info obj
+
+Output:
+
+    var obj, _asid0,
+      __cascade = function() { var args, i, len, object; args = Array.prototype.slice.call(arguments); len = args.length; if (len === 0) return null; i = 0; object = args[i++]; while (i<args.length) { object[args[i++]] = args[i++]; } return object; };
+
+    global.FOO = 1;
+
+    global.BAR = 2;
+
+    global.BAZ = 3;
+
+    obj = {};
+
+    obj.FOO = FOO;
+
+    obj.BAR = BAR;
+
+    obj.BAZ = 'baz';
+
+    console.info(obj);
+
+    obj = {};
+
+    obj.info = {};
+
+    _asid0 = obj.info;
+
+    _asid0.foo = 'foo';
+
+    _asid0.bar = function() {
+      return console.info('bar');
+    };
+
+    console.info(__cascade(obj, "FOO", FOO, "BAR", 'bar'));
+
+    obj = {};
+
+    obj.a = "b";
+
+    obj["a" + "b"] = "ab";
+
+    console.info(obj);
+
+Result:
+    
+    { FOO: 1, BAR: 2, BAZ: 'baz' }
+    { info: { foo: 'foo', bar: [Function] }, FOO: 1, BAR: 'bar' }
+    { a: 'b', ab: 'ab' }
+
 
 Installation
 ============
