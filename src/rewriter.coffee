@@ -28,7 +28,7 @@ class exports.Rewriter
     @addImplicitBraces()
     @addImplicitParentheses()
     @rewriteAsynchronous()
-    @cascade()
+    @extend()
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -648,13 +648,13 @@ class exports.Rewriter
     @caller_id_num = 0 unless @caller_id_num?
     "_asid" + @caller_id_num++
 
-  cascade: (force_complex = false)->
+  extend: (force_complex = false)->
     TAG  = 0
     VALUE = 1
     LINE = 2
     new_tokens = []
     {smartPush, getTag, getToken, popCaller, shiftNextBlock, shiftParam, shiftBlockTokens, popBlockTokensUntil} = @toffeeHelpers()
-    while token = @tokens[TAG]
+    while token = @tokens[0]
       if token[0] is '{' and getTag(new_tokens) is '.'
         params =  shiftNextBlock(@tokens)
         comma = new_tokens.pop()
@@ -691,7 +691,7 @@ class exports.Rewriter
 
           old_tokens = @tokens
           @tokens    = value
-          @cascade(true)
+          @extend(true)
           value      = @tokens
           @tokens    = old_tokens
 
@@ -699,14 +699,14 @@ class exports.Rewriter
 
         if complex
           smartPush new_tokens, 
-            ['IDENTIFIER', '__cascade', lineno],
+            ['IDENTIFIER', '__ts_extend', lineno],
             ['CALL_START', '(', lineno],
             caller,
             [',', ',', lineno],
 
           for param in new_params
             [key, value] = param
-            # convert IDENTIFIER to String use for cascading
+            # convert IDENTIFIER to String use for extending
             if key.length is 1
               key = key[0]
             if key[TAG] is 'IDENTIFIER'

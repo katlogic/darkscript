@@ -12,7 +12,7 @@ Additional Features
 2. String In Symbol Style
 3. RegExp operator =~
 4. RegExp Magic Identifier ```\& \~ \1..9```
-5. Cascading
+5. Extending
 
 ### 1. Asynchronous
 
@@ -163,7 +163,7 @@ Output:
       }
     }).call(this);
 
-### 5. Cascading ###
+### 5. Extending ###
 
 Grammar: Identifier . Object
 
@@ -185,7 +185,7 @@ Example:
         bar: ->
             console.info 'bar'
 
-    # it will use __cascade function the the assigment as param in function.
+    # it will use __ts_extend function the the assigment as param in function.
     console.info obj.{FOO, BAR: 'bar'}
 
     # when use {...} the object will become more powerful, any expression could be used as key.
@@ -199,7 +199,7 @@ Example:
 Output:
 
     var obj, _asid0,
-      __cascade = function() { var args, i, len, object; args = Array.prototype.slice.call(arguments); len = args.length; if (len === 0) return null; i = 0; object = args[i++]; while (i<args.length) { object[args[i++]] = args[i++]; } return object; };
+      __ts_extend = function() { var args, i, len, object; args = Array.prototype.slice.call(arguments); len = args.length; if (len === 0) return null; i = 0; object = args[i++]; while (i<args.length) { object[args[i++]] = args[i++]; } return object; };
 
     global.FOO = 1;
 
@@ -229,7 +229,7 @@ Output:
       return console.info('bar');
     };
 
-    console.info(__cascade(obj, "FOO", FOO, "BAR", 'bar'));
+    console.info(__ts_extend(obj, "FOO", FOO, "BAR", 'bar'));
 
     obj = {};
 

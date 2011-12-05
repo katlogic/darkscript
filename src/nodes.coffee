@@ -548,8 +548,8 @@ exports.Call = class Call extends Base
 
   # Compile a vanilla function call.
   compileNode: (o) ->
-    if @variable?.base?.value is '__cascade'
-      utility 'cascade'
+    if @variable?.base?.value is '__ts_extend'
+      utility 'ts_extend'
     @variable?.front = @front
     if code = Splat.compileSplattedArray o, @args, true
       return @compileSplat o, code
@@ -1847,8 +1847,8 @@ UTILITIES =
   matches: -> 'null'
 
 
-  # cascade
-  cascade: -> 'function() { var args, i, len, object; args = Array.prototype.slice.call(arguments); len = args.length; if (len === 0) return null; i = 0; object = args[i++]; while (i<args.length) { object[args[i++]] = args[i++]; } return object; }'
+  # ts_extend
+  ts_extend: -> 'function() { var args, i, len, object; args = Array.prototype.slice.call(arguments); len = args.length; if (len === 0) return null; i = 0; object = args[i++]; while (i<args.length) { object[args[i++]] = args[i++]; } return object; }'
 # Levels indicate a node's position in the AST. Useful for knowing if
 # parens are necessary or superfluous.
 LEVEL_TOP    = 1  # ...;
