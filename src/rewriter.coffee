@@ -322,6 +322,11 @@ class exports.Rewriter
       shiftBlockTokensUntil tokens, (token) =>
         ASYNC_END[token[TAG]]
 
+    shiftNextBlockGreedy = (tokens) =>
+      shiftBlockTokensUntil tokens, (token) =>
+        false
+      , false
+
     shiftParam = (tokens) =>
       found = false
       result = shiftBlockTokensUntil tokens, (token) =>
@@ -371,7 +376,7 @@ class exports.Rewriter
 
     getTag = tag
     {
-      shiftTokensUntil, shiftConditionBlock, shiftNextBlock, shiftParam, shiftBlockTokens,
+      shiftTokensUntil, shiftConditionBlock, shiftNextBlock, shiftParam, shiftBlockTokens, shiftNextBlockGreedy,
       popBlockTokensUntil,
       tag, getTag, getToken, popCaller,
       smartPush
@@ -556,7 +561,7 @@ class exports.Rewriter
     line         = 0
 
     {getAsync} = @asyncFunctions()
-    {shiftTokensUntil, shiftConditionBlock, shiftNextBlock, tag, smartPush} = @toffeeHelpers()
+    {shiftTokensUntil, shiftConditionBlock, shiftNextBlockGreedy, tag, smartPush} = @toffeeHelpers()
 
     while token = @tokens.shift()
       line = token[LINE]
@@ -565,7 +570,7 @@ class exports.Rewriter
         token[TAG]   = 'IF'
 
         condition = shiftConditionBlock(@tokens)
-        next      = shiftNextBlock(@tokens)
+        next      = shiftNextBlockGreedy(@tokens)
         old_tokens = @tokens
         @tokens = next
         @rewriteAsyncCondition()

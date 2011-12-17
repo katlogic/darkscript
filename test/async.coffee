@@ -111,3 +111,5 @@ test 'async condition', ->
   if! a
     a = reset!
   eq a, 'world'
+  complex = (a=(->)) ->
+    null

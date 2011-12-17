@@ -1,4 +1,4 @@
-# Cascading
+# Extending
 # -------
 
 test "extending", ->
