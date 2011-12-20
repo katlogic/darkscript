@@ -65,7 +65,7 @@ exports.run = ->
   loadRequires()                         if opts.require
   return require './repl'                if opts.interactive
   if opts.watch and !fs.watch
-    printWarn "The --watch feature depends on Node v0.6.0+. You are running #{process.version}."
+    return printWarn "The --watch feature depends on Node v0.6.0+. You are running #{process.version}."
   return compileStdio()                  if opts.stdio
   return compileScript null, sources[0]  if opts.eval
   return require './repl'                unless sources.length
@@ -76,38 +76,41 @@ exports.run = ->
   process.execPath = require.main.filename
   for source in sources
     compilePath source, yes, path.normalize source
-    
-# Compile a path, which could be a script or a directory. If a directory 
-# is passed, recursively compile all '.coffee' extension source files in it 
+
+# Compile a path, which could be a script or a directory. If a directory
+# is passed, recursively compile all '.coffee' extension source files in it
 # and all subdirectories.
 compilePath = (source, topLevel, base) ->
-  path.exists source, (exists) ->
-    if topLevel and not exists and source[-7..] isnt '.coffee'
-      source = sources[sources.indexOf(source)] = "#{source}.coffee"
-      return compilePath source, topLevel, base
-    if topLevel and not exists 
-      console.error "File not found: #{source}"
-      process.exit 1
-    fs.stat source, (err, stats) ->
-      throw err if err
-      if stats.isDirectory()
-        watchDir source, base if opts.watch
-        fs.readdir source, (err, files) ->
-          throw err if err
-          files = files.map (file) -> path.join source, file
-          index = sources.indexOf source
-          sources[index..index] = files
-          sourceCode[index..index] = files.map -> null
-          compilePath file, no, base for file in files
-      else if topLevel or path.extname(source) is '.coffee'
-        watch source, base if opts.watch
-        fs.readFile source, (err, code) ->
-          throw err if err
-          compileScript(source, code.toString(), base)
-      else
-        notSources[source] = yes
-        removeSource source, base
-            
+  fs.stat source, (err, stats) ->
+    throw err if err and err.code isnt 'ENOENT'
+    if err?.code is 'ENOENT'
+      if topLevel and source[-7..] isnt '.coffee'
+        source = sources[sources.indexOf(source)] = "#{source}.coffee"
+        return compilePath source, topLevel, base
+      if topLevel
+        console.error "File not found: #{source}"
+        process.exit 1
+      return
+    if stats.isDirectory()
+      watchDir source, base if opts.watch
+      fs.readdir source, (err, files) ->
+        throw err if err and err.code isnt 'ENOENT'
+        return if err?.code is 'ENOENT'
+        files = files.map (file) -> path.join source, file
+        index = sources.indexOf source
+        sources[index..index] = files
+        sourceCode[index..index] = files.map -> null
+        compilePath file, no, base for file in files
+    else if topLevel or path.extname(source) is '.coffee'
+      watch source, base if opts.watch
+      fs.readFile source, (err, code) ->
+        throw err if err and err.code isnt 'ENOENT'
+        return if err?.code is 'ENOENT'
+        compileScript(source, code.toString(), base)
+    else
+      notSources[source] = yes
+      removeSource source, base
+
 
 # Compile a single source script, containing the given code, according to the
 # requested options. If evaluating the script directly sets `__filename`,
@@ -149,10 +152,13 @@ compileStdio = ->
 
 # If all of the source files are done being read, concatenate and compile
 # them together.
+joinTimeout = null
 compileJoin = ->
   return unless opts.join
   unless sourceCode.some((code) -> code is null)
-    compileScript opts.join, sourceCode.join('\n'), opts.join
+    clearTimeout joinTimeout
+    joinTimeout = wait 100, ->
+      compileScript opts.join, sourceCode.join('\n'), opts.join
 
 # Load files that are to-be-required before compilation occurs.
 loadRequires = ->
@@ -165,53 +171,78 @@ loadRequires = ->
 # time the file is updated. May be used in combination with other options,
 # such as `--lint` or `--print`.
 watch = (source, base) ->
-  
+
   prevStats = null
-  
+  compileTimeout = null
+
+  watchErr = (e) ->
+    if e.code is 'ENOENT'
+      return if sources.indexOf(source) is -1
+      removeSource source, base, yes
+      compileJoin()
+    else throw e
+
   compile = ->
-    fs.stat source, (err, stats) ->
-      throw err if err
-      return if prevStats and (stats.size is prevStats.size and
-        stats.mtime.getTime() is prevStats.mtime.getTime())
-      prevStats = stats
-      fs.readFile source, (err, code) ->
-        throw err if err
-        compileScript(source, code.toString(), base)
-      
-  watcher = fs.watch source, callback = (event) ->
-    if event is 'change'
-      compile()
-    else if event is 'rename'
-      watcher.close()
-      setTimeout -> 
-        path.exists source, (exists) ->
-          if exists
-            compile()
+    clearTimeout compileTimeout
+    compileTimeout = wait 25, ->
+      fs.stat source, (err, stats) ->
+        return watchErr err if err
+        return if prevStats and (stats.size is prevStats.size and
+          stats.mtime.getTime() is prevStats.mtime.getTime())
+        prevStats = stats
+        fs.readFile source, (err, code) ->
+          return watchErr err if err
+          compileScript(source, code.toString(), base)
+
+  watchErr = (e) ->
+    throw e unless e.code is 'ENOENT'
+    removeSource source, base, yes
+    compileJoin()
+
+  try
+    watcher = fs.watch source, callback = (event) ->
+      if event is 'change'
+        compile()
+      else if event is 'rename'
+        watcher.close()
+        wait 250, ->
+          compile()
+          try
             watcher = fs.watch source, callback
-          else
-            removeSource source, base, yes
-            compileJoin()
-      , 250
-      
+          catch e
+            watchErr e
+  catch e
+    watchErr e
+
+
 # Watch a directory of files for new additions.
 watchDir = (source, base) ->
-  watcher = fs.watch source, ->
-    path.exists source, (exists) ->
-      if exists
+  readdirTimeout = null
+  try
+    watcher = fs.watch source, ->
+      clearTimeout readdirTimeout
+      readdirTimeout = wait 25, ->
         fs.readdir source, (err, files) ->
-          throw err if err
+          if err
+            throw err unless err.code is 'ENOENT'
+            watcher.close()
+            return unwatchDir source, base
           files = files.map (file) -> path.join source, file
-          for file in files when not notSources[file] 
+          for file in files when not notSources[file]
             continue if sources.some (s) -> s.indexOf(file) >= 0
             sources.push file
             sourceCode.push null
             compilePath file, no, base
-      else
-        watcher.close()
-        toRemove = (file for file in sources when file.indexOf(source) >= 0)
-        removeSource file, base, yes for file in toRemove
-        compileJoin()
-        
+  catch e
+    throw e unless e.code is 'ENOENT'
+
+unwatchDir = (source, base) ->
+  prevSources = sources.slice()
+  toRemove = (file for file in sources when file.indexOf(source) >= 0)
+  removeSource file, base, yes for file in toRemove
+  return unless sources.some (s, i) -> prevSources[i] isnt s
+  compileJoin()
+
 # Remove a file from our source list, and source code cache. Optionally remove
 # the compiled JS version as well.
 removeSource = (source, base, removeJs) ->
@@ -222,10 +253,10 @@ removeSource = (source, base, removeJs) ->
     jsPath = outputPath source, base
     path.exists jsPath, (exists) ->
       if exists
-        fs.unlink jsPath, (err) -> 
-          throw err if err
+        fs.unlink jsPath, (err) ->
+          throw err if err and err.code isnt 'ENOENT'
           timeLog "removed #{source}"
-        
+
 # Get the corresponding output JavaScript path for a source file.
 outputPath = (source, base) ->
   filename  = path.basename(source, path.extname(source)) + '.js'
@@ -249,7 +280,10 @@ writeJs = (source, js, base) ->
         timeLog "compiled #{source}"
   path.exists jsDir, (exists) ->
     if exists then compile() else exec "mkdir -p #{jsDir}", compile
-    
+
+# Convenience for cleaner setTimeouts.
+wait = (milliseconds, func) -> setTimeout func, milliseconds
+
 # When watching scripts, it's useful to log changes with the timestamp.
 timeLog = (message) ->
   console.log "#{(new Date).toLocaleTimeString()} - #{message}"
