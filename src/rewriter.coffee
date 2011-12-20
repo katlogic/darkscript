@@ -231,14 +231,15 @@ class exports.Rewriter
   # Tag postfix conditionals as such, so that we can parse them with a
   # different precedence.
   tagPostfixConditionals: ->
-    
+        
     original = null
     
     condition = (token, i) -> 
       token[0] in ['TERMINATOR', 'INDENT']
       
     action = (token, i) ->
-      original[0] = 'POST_' + original[0] if token[0] isnt 'INDENT'
+      if token[0] isnt 'INDENT' or (token.generated and not token.fromThen)
+        original[0] = 'POST_' + original[0] 
     
     @scanTokens (token, i) ->
       return 1 unless token[0] is 'IF'
@@ -506,7 +507,12 @@ class exports.Rewriter
       async_tokens.push ['PARAM_START', '(', line]
       async_id = 0
       for param in params
-        new_ident = ['IDENTIFIER', '_asp' + async_id++ , line]
+        len = param[0].length
+        ident_name = ''
+        for i in [len-1..0]
+          if param[0][i][0] is 'IDENTIFIER'
+            ident_name = param[0][i][1]
+        new_ident = ['IDENTIFIER', '_$$_' +ident_name, line]
         replacements.push [new_ident, param[0]]
         param[0] = new_ident
         pushTokens param
@@ -576,6 +582,7 @@ class exports.Rewriter
         @rewriteAsyncCondition()
         next = @tokens
         @tokens = old_tokens
+
         condition.unshift token
         func_name = @async_id()
 
@@ -600,10 +607,17 @@ class exports.Rewriter
           [')', ')', line]
         ]
 
+
         outdent = condition.pop()
         smartPush condition,
           call_func
           outdent
+
+        old_tokens = @tokens
+        @tokens = condition
+        @rewriteAsyncCondition()
+        condition = @tokens
+        @tokens = old_tokens
 
         smartPush async_tokens,
           next_tokens,

@@ -250,15 +250,14 @@ exports.Block = class Block extends Base
     prelude   = ""
     unless o.bare
       preludeExps = for exp, i in @expressions
-        e = exp.unwrap()
-        break unless e instanceof Comment or e instanceof Literal
+        break unless exp.unwrap() instanceof Comment
         exp
       rest = @expressions[preludeExps.length...]
       @expressions = preludeExps
-      prelude = "#{@compileNode o}\n" if preludeExps.length
+      prelude = "#{@compileNode merge(o, indent: '')}\n" if preludeExps.length
       @expressions = rest
     code = @compileWithDeclarations o
-    return prelude + code if o.bare
+    return code if o.bare
     "#{prelude}(function() {\n#{code}\n}).call(this);\n"
 
   # Compile the expressions body for the contents of a function, with
@@ -1856,7 +1855,7 @@ UTILITIES =
 
   # Discover if an item is in an array.
   indexOf: -> """
-    Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (#{utility 'hasProp'}.call(this, i) && this[i] === item) return i; } return -1; }
+    Array.prototype.indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; }
   """
 
   # Shortcuts to speed up the lookup time for native functions.
