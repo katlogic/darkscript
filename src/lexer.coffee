@@ -48,7 +48,7 @@ exports.Lexer = class Lexer
     # short-circuiting if any of them succeed. Their order determines precedence:
     # `@literalToken` is the fallback catch-all.
     i = 0
-    while @chunk = code.slice i
+    while @chunk = code[i..]
       i += @identifierToken() or
            @asyncEndToken()   or
            @commentToken()    or
@@ -171,7 +171,7 @@ exports.Lexer = class Lexer
       when '"'
         return 0 unless string = @balancedString @chunk, '"'
         if 0 < string.indexOf '#{', 1
-          @interpolateString string.slice 1, -1
+          @interpolateString string[1...-1]
         else
           @token 'STRING', @escapeLines string
         length = string.length
@@ -231,7 +231,7 @@ exports.Lexer = class Lexer
   # Matches JavaScript interpolated directly into the source via backticks.
   jsToken: ->
     return 0 unless @chunk.charAt(0) is '`' and match = JSTOKEN.exec @chunk
-    @token 'JS', (script = match[0]).slice 1, -1
+    @token 'JS', (script = match[0])[1...-1]
     script.length
 
   # Matches regular expression literals. Lexing regular expressions is difficult
@@ -381,7 +381,7 @@ exports.Lexer = class Lexer
         prev[0] = 'COMPOUND_ASSIGN'
         prev[1] += '='
         return value.length
-    if value is ';'             
+    if value is ';'
      @seenFor = no
      tag = 'TERMINATOR'
     else if value in MATH            then tag = 'MATH'
@@ -466,12 +466,12 @@ exports.Lexer = class Lexer
         when end
           stack.pop()
           unless stack.length
-            return str.slice 0, i + 1
+            return str[0..i]
           end = stack[stack.length - 1]
           continue
       if end is '}' and letter in ['"', "'"]
         stack.push end = letter
-      else if end is '}' and letter is '/' and match = (HEREGEX.exec(str.slice i) or REGEX.exec(str.slice i))
+      else if end is '}' and letter is '/' and match = (HEREGEX.exec(str[i..]) or REGEX.exec(str[i..]))
         continueCount += match[0].length - 1
       else if end is '}' and letter is '{'
         stack.push end = '}'
@@ -498,10 +498,10 @@ exports.Lexer = class Lexer
         i += 1
         continue
       unless letter is '#' and str.charAt(i+1) is '{' and
-             (expr = @balancedString str.slice(i + 1), '}')
+             (expr = @balancedString str[i + 1..], '}')
         continue
-      tokens.push ['NEOSTRING', str.slice(pi, i)] if pi < i
-      inner = expr.slice(1, -1)
+      tokens.push ['NEOSTRING', str[pi...i]] if pi < i
+      inner = expr[1...-1]
       if inner.length
         nested = new Lexer().tokenize inner, line: @line, rewrite: off
         nested.pop()
@@ -513,7 +513,7 @@ exports.Lexer = class Lexer
           tokens.push ['TOKENS', nested]
       i += expr.length
       pi = i + 1
-    tokens.push ['NEOSTRING', str.slice pi] if i > pi < str.length
+    tokens.push ['NEOSTRING', str[pi..]] if i > pi < str.length
     return tokens if regex
     return @token 'STRING', '""' unless tokens.length
     tokens.unshift ['', ''] unless tokens[0][0] is 'NEOSTRING'
@@ -574,9 +574,9 @@ exports.Lexer = class Lexer
       if contents in ['\n', quote] then contents else match
     body = body.replace /// #{quote} ///g, '\\$&'
     quote + @escapeLines(body, heredoc) + quote
-    
+
   # Throws a syntax error on the current `@line`.
-  error: (message) -> 
+  error: (message) ->
     throw SyntaxError "#{message} on line #{ @line + 1}"
 
   getStringUntil: (string, pattern)->
