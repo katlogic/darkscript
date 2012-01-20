@@ -26,7 +26,7 @@ Input:
       @va = obj.foo_2_1! 'pa', 'pb'
       # @ is inherited
       [va, @vb] = obj::foo_2_2! 'pa', 'pb'
-      va, @vb = without_brackets
+      va, @vb = without_brackets!
 
     # another async block
     do ->
@@ -45,16 +45,15 @@ Output:
     (function() {
       var _this = this;
       return foo_0_0(function() {
-        return obj.foo_2_1('pa', 'pb', function(_asp0) {
-          _this.va = _asp0;
-          return obj.prototype.foo_2_2('pa', 'pb', function(_asp0, _asp1) {
+        return obj.foo_2_1('pa', 'pb', function(_$$_va) {
+          _this.va = _$$_va;
+          return obj.prototype.foo_2_2('pa', 'pb', function(_$$_va, _$$_vb) {
             var va;
-            va = _asp0;
-            _this.vb = _asp1;
-            return without_brackets(function(_asp0, _asp1) {
-              var vb;
-              va = _asp0;
-              return vb = _asp1;
+            va = _$$_va;
+            _this.vb = _$$_vb;
+            return without_brackets(function(_$$_va, _$$_vb) {
+              va = _$$_va;
+              return _this.vb = _$$_vb;
             });
           });
         });
@@ -63,20 +62,20 @@ Output:
 
     (function() {
       var _this = this;
-      return this.foo('pa', function(_asp0) {
-        return _this.va = _asp0;
+      return this.foo('pa', function(_$$_va) {
+        return _this.va = _$$_va;
       });
     })();
 
     if (true) {
-      foo(function(_asp0) {
+      foo(function(_$$_va) {
         var va;
-        return va = _asp0;
+        return va = _$$_va;
       });
     } else {
-      foo(function(_asp0) {
+      foo(function(_$$_vb) {
         var vb;
-        return vb = _asp0;
+        return vb = _$$_vb;
       });
     }
 
