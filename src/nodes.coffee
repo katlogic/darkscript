@@ -761,13 +761,14 @@ exports.Slice = class Slice extends Base
   compileNode: (o) ->
     {to, from} = @range
     fromStr    = from and from.compile(o, LEVEL_PAREN) or '0'
-    compiled   = to and to.compile o, LEVEL_ACCESS
+    compiled   = to and to.compile o, LEVEL_PAREN
     if to and not (not @range.exclusive and +compiled is -1)
       toStr = ', ' + if @range.exclusive
         compiled
       else if SIMPLENUM.test compiled
-        (+compiled + 1).toString()
+        "#{+compiled + 1}"
       else
+        compiled = to.compile o, LEVEL_ACCESS
         "#{compiled} + 1 || 9e9"
     ".slice(#{ fromStr }#{ toStr or '' })"
 
@@ -994,7 +995,8 @@ exports.Assign = class Assign extends Base
   constructor: (@variable, @value, @context, options) ->
     @param = options and options.param
     @subpattern = options and options.subpattern
-    if name = @variable.unwrapAll().value in STRICT_PROSCRIBED
+    forbidden = (name = @variable.unwrapAll().value) in STRICT_PROSCRIBED
+    if forbidden and @context isnt 'object'
       throw SyntaxError "variable name may not be \"#{name}\""
 
   children: ['variable', 'value']
@@ -1509,6 +1511,8 @@ exports.Op = class Op extends Base
 
   # Compile a unary **Op**.
   compileUnary: (o) ->
+    if o.level >= LEVEL_ACCESS
+      return (new Parens this).compile o
     parts = [op = @operator]
     plusMinus = op in ['+', '-']
     parts.push ' ' if op in ['new', 'typeof', 'delete'] or
