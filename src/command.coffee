@@ -21,10 +21,10 @@ printWarn = (line) -> process.stderr.write line + '\n'
 
 # The help banner that is printed when `coffee` is called without arguments.
 BANNER = '''
-  Usage: toffee [options] path/to/script.toffee
-  
+  Usage: toffee [options] path/to/script.toffee -- [args]
+
   If called without options, `toffee` will run your script.
-         '''
+'''
 
 # The list of all the valid option flags that `coffee` knows how to handle.
 SWITCHES = [
