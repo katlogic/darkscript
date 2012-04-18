@@ -75,6 +75,9 @@ backlog = ''
 # Attempt to evaluate the command. If there's an exception, print it out instead
 # of exiting.
 run = (buffer) ->
+  # remove single-line comments
+  buffer = buffer.replace /(^|[\r\n]+)(\s*)##?(?:[^#\r\n][^\r\n]*|)($|[\r\n])/, "$1$2$3"
+  # remove trailing newlines
   buffer = buffer.replace /[\r\n]+$/, ""
   if multilineMode
     backlog += "#{buffer}\n"
@@ -94,7 +97,7 @@ run = (buffer) ->
   backlog = ''
   try
     _ = global._
-    returnValue = CoffeeScript.eval "_=(undefined\n;#{code}\n)", {
+    returnValue = CoffeeScript.eval "_=(#{code}\n)", {
       filename: 'repl'
       modulename: 'repl'
     }
@@ -140,6 +143,7 @@ repl.input.on 'keypress', (char, key) ->
   repl.output.cursorTo 0
   repl.output.clearLine 1
   multilineMode = not multilineMode
+  repl._line() if not multilineMode and backlog
   backlog = ''
   repl.setPrompt (newPrompt = if multilineMode then REPL_PROMPT_MULTILINE else REPL_PROMPT)
   repl.prompt()
