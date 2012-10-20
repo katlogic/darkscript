@@ -29,6 +29,8 @@ test "nested extending 2", ->
     b: 3
     c: ->
       'c'
+    d: (e, f) ->
+      'g'
   eq a.c(), 'c'
 
 

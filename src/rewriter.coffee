@@ -609,7 +609,6 @@ class exports.Rewriter
           [')', ')', line]
         ]
 
-
         outdent = condition.pop()
         smartPush condition,
           call_func
@@ -739,7 +738,12 @@ class exports.Rewriter
           key = shiftBlockTokens params, [',', ':'], false
           colon = params.shift()
           if colon and colon[TAG] is ':'
+            if params[0][TAG] == 'PARAM_START'
+              func_params = shiftBlockTokens params, ['PARAM_END']
+            else
+              func_params = []
             value = shiftParam(params)
+            value = func_params.concat(value)
             comma = params.shift()
           else
             comma = colon
