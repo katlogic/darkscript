@@ -3,7 +3,7 @@
   "description":  "CoffeeScript with asynchronous syntax and additional features",
   "keywords":     ["javascript", "language", "coffeescript", "compiler", "asynchronous", "toffeescript"],
   "author":       "Jiang Miao",
-  "version":      "1.3.3-1",
+  "version":      "1.4.0",
   "licenses":     [{
     "type":       "MIT",
     "url":        "http://github.com/jiangmiao/toffee-script/raw/master/LICENSE"
@@ -19,8 +19,11 @@
     "toffee":     "./bin/toffee",
     "tcons":      "./bin/tcons"
   },
+  "scripts": {
+    "test": "node ./bin/tcons test"
+  },
   "homepage":     "https://github.com/jiangmiao/toffee-script",
-  "bugs":         "https://github.com/jashkenas/coffee-script/issues",
+  "homepage":     "https://github.com/jiangmiao/toffee-script/issues",
   "repository":   {
     "type": "git",
     "url": "git://github.com/jiangmiao/toffee-script.git"

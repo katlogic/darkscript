@@ -7,7 +7,7 @@
 {RESERVED, STRICT_PROSCRIBED} = require './lexer'
 
 # Import the helpers we plan to use.
-{compact, flatten, extend, merge, del, starts, ends, last} = require './helpers'
+{compact, flatten, extend, merge, del, starts, ends, last, some} = require './helpers'
 
 exports.extend = extend  # for parser
 
@@ -229,7 +229,6 @@ exports.Block = class Block extends Base
         code = node.compile o
         unless node.isStatement o
           code = "#{@tab}#{code};"
-          code = "#{code}\n" if node instanceof Literal
         codes.push code
       else
         codes.push node.compile o, LEVEL_LIST
@@ -608,8 +607,8 @@ exports.Call = class Call extends Base
       return """
         (function(func, args, ctor) {
         #{idt}ctor.prototype = func.prototype;
-        #{idt}var child = new ctor, result = func.apply(child, args), t = typeof result;
-        #{idt}return t == "object" || t == "function" ? result || child : child;
+        #{idt}var child = new ctor, result = func.apply(child, args);
+        #{idt}return Object(result) === result ? result : child;
         #{@tab}})(#{ @variable.compile o, LEVEL_LIST }, #{splatArgs}, function(){})
       """
     base = new Value @variable
@@ -789,7 +788,7 @@ exports.Slice = class Slice extends Base
         "#{+compiled + 1}"
       else
         compiled = to.compile o, LEVEL_ACCESS
-        "#{compiled} + 1 || 9e9"
+        "+#{compiled} + 1 || 9e9"
     ".slice(#{ fromStr }#{ toStr or '' })"
 
 #### Obj
@@ -803,14 +802,6 @@ exports.Obj = class Obj extends Base
 
   compileNode: (o) ->
     props = @properties
-    propNames = []
-    for prop in @properties
-      prop = prop.variable if prop.isComplex()
-      if prop?
-        propName = prop.unwrapAll().value.toString()
-        if propName in propNames
-          throw SyntaxError "multiple object literal properties named \"#{propName}\""
-        propNames.push propName
     return (if @front then '({})' else '{}') unless props.length
     if @generated
       for node in props when node instanceof Value
@@ -1542,9 +1533,12 @@ exports.Op = class Op extends Base
 
   # Compile a unary **Op**.
   compileUnary: (o) ->
+    parts = [op = @operator]
+    if op is '!' and @first instanceof Existence
+      @first.negated = not @first.negated
+      return @first.compile o
     if o.level >= LEVEL_ACCESS
       return (new Parens this).compile o
-    parts = [op = @operator]
     plusMinus = op in ['+', '-']
     parts.push ' ' if op in ['new', 'typeof', 'delete'] or
                       plusMinus and @first instanceof Op and @first.operator is op
@@ -1625,14 +1619,17 @@ exports.Try = class Try extends Base
   # is optional, the *catch* is not.
   compileNode: (o) ->
     o.indent  += TAB
-    errorPart = if @error then " (#{ @error.compile o }) " else ' '
     tryPart   = @attempt.compile o, LEVEL_TOP
 
     catchPart = if @recovery
+      if @error.isObject?()
+        placeholder = new Literal '_error'
+        @recovery.unshift new Assign @error, placeholder
+        @error = placeholder
       if @error.value in STRICT_PROSCRIBED
         throw SyntaxError "catch variable may not be \"#{@error.value}\""
       o.scope.add @error.value, 'param' unless o.scope.check @error.value
-      " catch#{errorPart}{\n#{ @recovery.compile o, LEVEL_TOP }\n#{@tab}}"
+      " catch (#{ @error.compile o }) {\n#{ @recovery.compile o, LEVEL_TOP }\n#{@tab}}"
     else unless @ensure or @recovery
       ' catch (_error) {}'
 
