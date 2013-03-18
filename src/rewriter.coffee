@@ -26,6 +26,8 @@ class exports.Rewriter
     @tagPostfixConditionals()
     @addImplicitBraces()
     @addImplicitParentheses()
+    @rewriteAsync()
+    # console.info @tokens
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -113,7 +115,7 @@ class exports.Rewriter
       [tag] = token
       sameLine = no if tag in LINEBREAKS
       return (
-        (tag in ['TERMINATOR', 'OUTDENT'] or 
+        (tag in ['TERMINATOR', 'OUTDENT'] or
           (tag in IMPLICIT_END and sameLine and not (i - startIndex is 1))) and
         ((!startsLine and @tag(i - 1) isnt ',') or
           not (two?[0] is ':' or one?[0] is '@' and three?[0] is ':'))) or
@@ -226,6 +228,72 @@ class exports.Rewriter
         tokens.splice i, 1 if tag is 'THEN'
         return 1
       return 1
+
+  rewriteAsync: ->
+    ident = ['IDENTIFIER', ',', '@', '.', '::']
+    dest = []
+    {tokens} = @
+    while token = tokens.shift()
+      if token[0] == 'IDENTIFIER' && token[1].slice(-1) == '!'
+        line = token[2]
+        token[1] = token[1].slice(0,-1)
+        tag_await = ['AWAIT', 'await', line, spaced:true]
+        tag_defer = ['DEFER', 'defer', line]
+        tag_cs = ['CALL_START', '(', line]
+        tag_ce = ['CALL_END', ')', line]
+        tag_comma = [',', ',', line]
+
+        caller = [token]
+        params = []
+
+        # get caller
+        while (t = dest.pop()) && t[0] in ident
+          caller.unshift(t)
+
+        if t && t[0] == '='
+          # found equal, = 被忽略
+          while (t = dest.pop()) && t[0] in ident
+            params.unshift(t)
+
+        if t
+          dest.push t
+
+        dest.push tag_await
+
+        # 插入 caller
+        for t in caller
+          dest.push t
+
+        # 寻找 CALL_END
+        num = 0
+        if tokens[0] && tokens[0][0] != 'CALL_START'
+          dest.push tag_cs
+          dest.push tag_ce
+        else
+          level = 0
+          while token = tokens.shift()
+            dest.push token
+            if token[0] == 'CALL_START'
+              ++level
+            else if token[0] == 'CALL_END'
+              --level
+              if level == 0
+                break
+            else
+              ++num
+        end = dest.pop()
+        if num
+          dest.push tag_comma
+        dest.push tag_defer
+        dest.push tag_cs
+        for t in params
+          dest.push t
+        dest.push tag_ce
+        dest.push end
+      else
+        dest.push token
+
+    @tokens = dest
 
   # Tag postfix conditionals as such, so that we can parse them with a
   # different precedence.

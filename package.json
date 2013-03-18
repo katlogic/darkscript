@@ -1,9 +1,9 @@
 {
-  "name":         "iced-coffee-script",
-  "description":  "IcedCoffeeScript",
+  "name":         "toffee-script",
+  "description":  "ToffeeScript",
   "keywords":     ["javascript", "language", "coffeescript", "compiler"],
-  "author":       "Maxwell Krohn",
-  "version":      "1.4.0c",
+  "author":       "Miao Jiang",
+  "version":      "1.5.0",
   "licenses":     [{
     "type":       "MIT",
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
@@ -16,14 +16,14 @@
   },
   "main" : "./lib/coffee-script/coffee-script",
   "bin":          {
-    "iced":           "./bin/coffee",
-    "icake":           "./bin/cake"
+    "toffee":           "./bin/coffee",
+    "tcons":           "./bin/cake"
   },
-  "homepage":     "http://maxtaco.github.com/coffee-script",
-  "bugs":         "https://github.com/maxtaco/coffee-script/issues",
+  "homepage":     "http://github.com/jiangmiao/toffee-script",
+  "bugs":         "https://github.com/jiangmiao/toffee-script/issues",
   "repository":   {
     "type": "git",
-    "url": "git://github.com/maxtaco/coffee-script.git"
+    "url": "git://github.com/jiangmiao/toffee-script.git"
   },
   "devDependencies": {
     "uglify-js":  ">=1.0.0",

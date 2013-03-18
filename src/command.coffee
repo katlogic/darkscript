@@ -28,7 +28,7 @@ hidden = (file) -> /^\.|~$/.test file
 
 # The help banner that is printed when `iced` is called without arguments.
 BANNER = '''
-  Usage: iced [options] path/to/script.coffee -- [args]
+  Usage: toffee [options] path/to/script.coffee -- [args]
 
   If called without options, `iced` will run your script.
          '''
@@ -350,4 +350,4 @@ usage = ->
 
 # Print the `--version` message and exit.
 version = ->
-  printLine "IcedCoffeeScript version #{CoffeeScript.VERSION}"
+  printLine "ToffeeScript version #{CoffeeScript.VERSION}"

@@ -600,7 +600,7 @@ exports.STRICT_PROSCRIBED = STRICT_PROSCRIBED
 
 # Token matching regexes.
 IDENTIFIER = /// ^
-  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]* )
+  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]*!? )
   ( [^\n\S]* : (?!:) )?  # Is this a property name?
 ///
 
