@@ -53,6 +53,7 @@ SWITCHES = [
   ['-w', '--watch',           'watch scripts for changes and rerun commands']
   ['-I', '--runtime [WHICH]', "how to include the iced runtime, one of #{runtime_modes_str}; default is 'node'" ]
   ['-F', '--runforce',        'output an Iced runtime even if not needed' ]
+  [      '--release',         'remove debug info']
 ]
 
 # Top-level objects shared by all the functions.
@@ -330,7 +331,7 @@ parseOptions = ->
 
 # The compile-time options to pass to the CoffeeScript compiler.
 compileOptions = (filename) ->
-  {filename, bare: opts.bare, header: opts.compile, runtime: opts.runtime, runforce : opts.runforce }
+  {filename, bare: opts.bare, header: opts.compile, runtime: opts.runtime, runforce : opts.runforce, release : opts.release }
 
 # Start up a new Node.js instance with the arguments in `--nodejs` passed to
 # the `node` binary, preserving the other options.

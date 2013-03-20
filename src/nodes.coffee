@@ -2379,11 +2379,16 @@ exports.Defer = class Defer extends Base
     ln_lhs = new Value new Literal iced.const.lineno
     ln_rhs = new Value new Literal @lineno
     ln_assign = new Assign ln_lhs, ln_rhs, "object"
-    assignments.push ln_assign
-    o = new Obj assignments
+    # comment line below to remove lineno info
+    if !o.release
+      assignments.push ln_assign
 
-    # Return the final call
-    new Call fn, [ new Value o ]
+    if assignments.length
+      o = new Obj assignments
+      # Return the final call
+      new Call fn, [ new Value o ]
+    else
+      new Call fn
 
   compileNode : (o) ->
     call = @transform o
@@ -2433,7 +2438,11 @@ exports.Await = class Await extends Base
       assignments.push func_assignment
 
     trace = new Obj assignments, true
-    call = new Call cls, [ (new Value new Literal iced.const.k), trace ]
+    # Remove trace info when in line
+    if o.release
+      call = new Call cls, [ (new Value new Literal iced.const.k) ]
+    else
+      call = new Call cls, [ (new Value new Literal iced.const.k), trace ]
     rhs = new Op "new", call
     assign = new Assign lhs, rhs
     body.unshift assign
