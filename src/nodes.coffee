@@ -3158,8 +3158,8 @@ InlineRuntime =
   #       @continuation @ret if not --@count
   #     defer : (defer_params) ->
   #       @count++
-  #       (inner_params...) =>
-  #         defer_params?.assign_fn?.apply(null, inner_params)
+  #       =>
+  #         defer_params?.assign_fn?.apply(null, arguments)
   #         @_fulfill()
   #   findDeferral : (args) -> null
   #
@@ -3211,7 +3211,7 @@ InlineRuntime =
     # Make the defer member:
     #   defer : (defer_params) ->
     #     @count++
-    #     ->
+    #     =>
     #       defer_params?.assign_fn?.apply(null, arguments)
     #       @_fulfill()
     #
