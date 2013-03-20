@@ -758,7 +758,11 @@ exports.Return = class Return extends Base
   constructor: (expr, auto) ->
     super()
     @icedHasAutocbFlag = auto
-    @expression = expr if expr and not expr.unwrap().isUndefined
+
+    expr ?= []
+    unless expr.length?
+      expr = [expr] if expr and not expr.unwrap().isUndefined
+    @expression = expr
 
   children: ['expression']
 
@@ -767,19 +771,20 @@ exports.Return = class Return extends Base
   jumps:           THIS
 
   compile: (o, level) ->
-    expr = @expression?.makeReturn()
+    expr = @expression[0]?.makeReturn()
     if expr and expr not instanceof Return then expr.compile o, level else super o, level
 
   compileNode: (o) ->
     if @icedHasAutocbFlag
       cb = new Value new Literal iced.const.autocb
-      args = if @expression then [ @expression ] else []
-      call = new Call cb, args
+      call = new Call cb, @expression
       ret = new Literal "return"
       block = new Block [ call, ret];
       block.compile o
     else
-      @tab + "return#{[" #{@expression.compile o, LEVEL_PAREN}" if @expression]};"
+      if @expression.length > 1
+        throw SyntaxError("only autocb can return multiple values")
+      @tab + "return#{[" #{@expression[0].compile o, LEVEL_PAREN}" if @expression[0]]};"
 
 #### Value
 
@@ -2438,7 +2443,7 @@ exports.Await = class Await extends Base
       assignments.push func_assignment
 
     trace = new Obj assignments, true
-    # Remove trace info when in line
+    # Remove trace info when release
     if o.release
       call = new Call cls, [ (new Value new Literal iced.const.k) ]
     else

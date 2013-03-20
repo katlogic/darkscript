@@ -3,7 +3,7 @@
   "description":  "ToffeeScript",
   "keywords":     ["javascript", "language", "coffeescript", "compiler"],
   "author":       "Miao Jiang",
-  "version":      "1.5.0",
+  "version":      "1.5.1",
   "licenses":     [{
     "type":       "MIT",
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"

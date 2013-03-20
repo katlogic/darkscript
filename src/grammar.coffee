@@ -164,7 +164,9 @@ grammar =
 
   # A return statement from a function body.
   Return: [
-    o 'RETURN Expression',                      -> new Return $2
+    # Keep for return v for i in [...] when ...
+    o 'RETURN Expression',                      -> new Return [$2]
+    o 'RETURN ArgList',                         -> new Return $2
     o 'RETURN',                                 -> new Return
   ]
 
