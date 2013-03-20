@@ -3211,12 +3211,12 @@ InlineRuntime =
     # Make the defer member:
     #   defer : (defer_params) ->
     #     @count++
-    #     (inner_params...) ->
-    #       defer_params?.assign_fn?.apply(null, inner_params)
+    #     ->
+    #       defer_params?.assign_fn?.apply(null, arguments)
     #       @_fulfill()
     #
     inc = new Op "++", cnt_member
-    ip = new Literal "inner_params"
+    ag = new Literal "arguments"
     dp = new Literal "defer_params"
     dp_value = new Value dp
     call_meth = new Value dp
@@ -3225,12 +3225,12 @@ InlineRuntime =
     my_apply = new Literal "apply"
     call_meth.add new Access my_apply, "soak"
     my_null = NULL()
-    apply_call = new Call call_meth, [ my_null, new Value ip ]
+    apply_call = new Call call_meth, [ my_null, new Value ag ]
     _fulfill_method = new Value new Literal "this"
     _fulfill_method.add new Access new Literal iced.const.fulfill
     _fulfill_call = new Call _fulfill_method, []
     inner_body = new Block [ apply_call, _fulfill_call ]
-    inner_params = [ new Param ip, null, on ]
+    inner_params = []
     inner_code = new Code inner_params, inner_body, "boundfunc"
     defer_body = new Block [ inc, inner_code ]
     defer_params = [ new Param dp ]
