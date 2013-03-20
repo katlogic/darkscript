@@ -1,56 +1,34 @@
-  
-        
-                                      ICED
-        
-                                       _____       __  __
-                                      / ____|     / _|/ _|
-     .- ----------- -.               | |     ___ | |_| |_ ___  ___
-    (  (ice cubes)    )              | |    / _ \|  _|  _/ _ \/ _ \
-    |`-..________ ..-'|              | |___| (_) | | | ||  __/  __/
-    |                 |               \_____\___/|_| |_| \___|\___|
-    |                 ;--.
-    |                (__  \            _____           _       _
-    |                 | )  )          / ____|         (_)     | |
-    |                 |/  /          | (___   ___ _ __ _ _ __ | |_
-    |                 (  /            \___ \ / __| '__| | '_ \| __|
-    |                 |/              ____) | (__| |  | | |_) | |_
-    |                 |              |_____/ \___|_|  |_| .__/ \__|
-     `-.._________..-'                                  | |
-                                                        |_|
+ToffeeScript 
+
+ToffeeScript base on IcedCoffeeScript from 1.5.0
+
+	Before 1.5.0, The code ToffeeScript generated is simple and clean, it's exactly equals native javascript. but the loop and condition supporting is missed, so from 1.5.0 I decided to base on IcedCoffeeScript, though there the performance will decrease slightly and more addition generated code.
+
+1. basic async
+
+	! async grammar
+
+	Assigments = FunctionName! Arguments
+
+	to
+
+	await FunctionName defer(Arguments)
 
 
-  CoffeeScript is a little language that compiles into JavaScript.
-  IcedCoffeeScript is a superset of CoffeeScript that adds two new 
-  keywords: await and defer.
+	eg:
 
-  Install Node.js, and then the CoffeeScript compiler:
-  sudo bin/cake install
+		x, y = fn! a, b, c
 
-  Or, if you have the Node Package Manager installed:
-  npm install -g iced-coffee-script
-  (Leave off the -g if you don't wish to install globally.)
+		to
 
-  Execute a script:
-  iced /path/to/script.coffee
+		await fn a, b, c, defer(x, y)
 
-  Compile a script:
-  iced -c /path/to/script.coffee
+2.  autocb supports multiple return
 
-  For documentation, usage, and examples, see:
-  http://maxtaco.github.com/coffee-script
+	when using multiple return, the keyword return cannot be omitted.
 
-  For iced-specific technical documentation, see:
-  https://github.com/maxtaco/coffee-script/blob/iced/iced.md
+	foo = (autocb) ->
+		return null, 3
 
-  To suggest a feature, report a bug, or general discussion:
-  https://github.com/maxtaco/coffee-script/issues/
-
-  DM or tweet at me with questions: @maxtaco
-
-  Or better yet, tweet about how much you love IcedCoffeeScript.
-
-  The source repository:
-  git://github.com/maxtaco/coffee-script.git
-
-  All contributors are listed here:
-  http://github.com/maxtaco/coffee-script/contributors
+	e, v = foo!
+	console.log e, v # output 'null 3'
