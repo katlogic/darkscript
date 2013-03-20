@@ -18,6 +18,7 @@ class exports.Rewriter
   # like this. The order of these passes matters -- indentation must be
   # corrected before implicit parentheses can be wrapped around blocks of code.
   rewrite: (@tokens) ->
+    @rewriteChannel()
     @removeLeadingNewlines()
     @removeMidExpressionNewlines()
     @closeOpenCalls()
@@ -27,7 +28,6 @@ class exports.Rewriter
     @addImplicitBraces()
     @addImplicitParentheses()
     @rewriteAsync()
-    # console.info @tokens
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -228,6 +228,33 @@ class exports.Rewriter
         tokens.splice i, 1 if tag is 'THEN'
         return 1
       return 1
+
+  rewriteChannel: ->
+    ident = ['IDENTIFIER', ',', '@', '.', '::']
+    dest = []
+    {tokens} = @
+    while token = tokens.shift()
+      if token[0] == '<-'
+        t = dest[dest.length-1]
+        line = token[2]
+        tag_dot = ['.', '.', line]
+        tag_push = ['IDENTIFIER', 'push!', line]
+        tag_push.spaced = true
+        tag_shift = ['IDENTIFIER', 'shift!', line]
+        tag_shift.spaced = true
+        if t && t[0] == 'IDENTIFIER'
+          # push
+          dest.push tag_dot
+          dest.push tag_push
+        else
+          while (token = tokens[0]) && token[0] in ident
+            dest.push tokens.shift()
+          # shift
+          dest.push tag_dot
+          dest.push tag_shift
+      else
+        dest.push token
+    @tokens = dest
 
   rewriteAsync: ->
     ident = ['IDENTIFIER', ',', '@', '.', '::']
