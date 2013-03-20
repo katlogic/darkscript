@@ -141,6 +141,13 @@ atest "simple autocb operations", (cb) ->
   await foo defer b
   cb(b, {})
 
+atest "autocb returns multiple values", (cb) ->
+  foo = (autocb) ->
+    await delay defer()
+    return 1, 2
+  await foo defer(a, b)
+  cb(a == 1 && b == 2, {})
+
 atest "AT variable works in an await (1)", (cb) ->
   class MyClass
     constructor : ->

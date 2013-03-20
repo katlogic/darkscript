@@ -30,7 +30,7 @@ hidden = (file) -> /^\.|~$/.test file
 BANNER = '''
   Usage: toffee [options] path/to/script.coffee -- [args]
 
-  If called without options, `iced` will run your script.
+  If called without options, `toffee` will run your script.
          '''
 
 # The list of all the valid option flags that `iced` knows how to handle.
