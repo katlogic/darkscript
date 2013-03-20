@@ -2,17 +2,22 @@ ToffeeScript
 
 ToffeeScript base on IcedCoffeeScript from 1.5.0
 
-	Before 1.5.0, The code ToffeeScript generated is simple and clean, it's exactly equals native javascript. but the loop and condition supporting is missed, so from 1.5.0 I decided to base on IcedCoffeeScript, though there the performance will decrease slightly and more addition generated code.
+	Before 1.5.0, The code ToffeeScript generated is simple but clean, it's exactly equals native javascript. but it's not powerful, the loop and condition supporting is missed, and IcedCoffeeScript gives very useful features, so from 1.5.0 I decided to base on IcedCoffeeScript, though there the performance will decrease slightly and will generate more addition code.
 
-1. basic async
 
-	! async grammar
+IcedCoffeeScript README
+	Basic:    http://maxtaco.github.com/coffee-script
+	Advanced: https://github.com/maxtaco/coffee-script/blob/iced/iced.md
+
+Additional Fetaures of ToffeeScript
+
+1. await alias '!'
 
 	Assigments = FunctionName! Arguments
 
 	to
 
-	await FunctionName defer(Arguments)
+	await FunctionName Arguments, defer(Assignments)
 
 
 	eg:
