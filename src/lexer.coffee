@@ -709,7 +709,7 @@ JS_KEYWORDS = [
 ]
 
 # CoffeeScript-only keywords.
-COFFEE_KEYWORDS = ['undefined', 'then', 'unless', 'until', 'loop', 'of', 'by', 'when']
+COFFEE_KEYWORDS = ['undefined', 'then', 'unless', 'until', 'loop', 'of', 'by', 'when', 'await', 'defer']
 
 COFFEE_ALIAS_MAP =
   and  : '&&'
@@ -749,7 +749,7 @@ BOM = 65279
 
 # Token matching regexes.
 IDENTIFIER = /// ^
-  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]* )
+  ( [$A-Za-z_\x7f-\uffff][$\w\x7f-\uffff]*!? )
   ( [^\n\S]* : (?!:) )?  # Is this a property name?
 ///
 
@@ -855,7 +855,7 @@ NOT_SPACED_REGEX = NOT_REGEX.concat ')', '}', 'THIS', 'IDENTIFIER', 'STRING'
 # Tokens which could legitimately be invoked or indexed. An opening
 # parentheses or bracket following these tokens will be recorded as the start
 # of a function invocation or indexing operation.
-CALLABLE  = ['IDENTIFIER', 'STRING', 'REGEX', ')', ']', '}', '?', '::', '@', 'THIS', 'SUPER']
+CALLABLE  = ['IDENTIFIER', 'STRING', 'REGEX', ')', ']', '}', '?', '::', '@', 'THIS', 'SUPER', 'RETURN', 'DEFER']
 INDEXABLE = CALLABLE.concat 'NUMBER', 'BOOL', 'NULL', 'UNDEFINED'
 
 # Tokens that, when immediately preceding a `WHEN`, indicate that the `WHEN`

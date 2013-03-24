@@ -97,6 +97,14 @@ grammar =
     o 'STATEMENT',                              -> new Literal $1
   ]
 
+  Defer: [
+    o 'DEFER Arguments',                        -> new Defer $2
+  ]
+
+  Await: [
+    o 'AWAIT Expression',                       -> new Await $2
+  ]
+
   # All the different types of expressions in our language. The basic unit of
   # CoffeeScript is the **Expression** -- everything that can be an expression
   # is one. Blocks serve as the building blocks of many other rules, making
@@ -114,6 +122,8 @@ grammar =
     o 'Switch'
     o 'Class'
     o 'Throw'
+    o 'Defer'
+    o 'Await'
   ]
 
   # An indented block of expressions. Note that the [Rewriter](rewriter.html)
@@ -173,7 +183,7 @@ grammar =
 
   # A return statement from a function body.
   Return: [
-    o 'RETURN Expression',                      -> new Return $2
+    o 'RETURN Arguments',                       -> new Return $2
     o 'RETURN',                                 -> new Return
   ]
 
@@ -591,7 +601,7 @@ operators = [
   ['nonassoc',  'INDENT', 'OUTDENT']
   ['right',     '=', ':', 'COMPOUND_ASSIGN', 'RETURN', 'THROW', 'EXTENDS']
   ['right',     'FORIN', 'FOROF', 'BY', 'WHEN']
-  ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS']
+  ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'AWAIT']
   ['right',     'POST_IF']
 ]
 

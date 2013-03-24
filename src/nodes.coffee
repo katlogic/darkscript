@@ -12,6 +12,8 @@ Error.stackTraceLimit = Infinity
 {compact, flatten, extend, merge, del, starts, ends, last, some,
 addLocationDataFn, locationDataToString, throwSyntaxError} = require './helpers'
 
+puts = (v) -> console.log v.toString()
+
 # Functions required by parser
 exports.extend = extend
 exports.addLocationDataFn = addLocationDataFn
@@ -104,11 +106,15 @@ exports.Base = class Base
   # Note that this is overridden for smarter behavior for
   # many statement nodes (e.g. If, For)...
   makeReturn: (res) ->
+    if @omit_return
+      # eg: the call generate by await, omit_return will be set
+      return @
+
     me = @unwrapAll()
     if res
       new Call new Literal("#{res}.push"), [me]
     else
-      new Return me
+      new Return [me], @autocb
 
   # Does this node, or any of its children, contain a node of a certain kind?
   # Recursively traverses down the *children* nodes and returns the first one
@@ -132,6 +138,14 @@ exports.Base = class Base
   # This is what `coffee --nodes` prints out.
   toString: (idt = '', name = @constructor.name) ->
     tree = '\n' + idt + name
+    if @autocb
+      tree += " [autocb]"
+    if @async
+      tree += " [async]"
+    if @omit_return
+      tree += " [omit]"
+    if @vars && @vars.length
+      tree += " [vars #{@vars.join(',')}]"
     tree += '?' if @soak
     @eachChild (node) -> tree += node.toString idt + TAB
     tree
@@ -148,6 +162,51 @@ exports.Base = class Base
     @eachChild (child) ->
       return false if func(child) is false
       child.traverseChildren crossScope, func
+
+  traverse: (funcs) ->
+    {from_parent, from_child} = funcs
+    unless @children
+      return false
+
+    @eachChild (child) =>
+      if from_parent
+        rt = from_parent child, @
+        return false if rt == false
+      child.traverse funcs
+      if from_child
+        rt = from_child @, child
+        return false if rt == false
+      true
+
+
+  setFlags: (scopes) ->
+    @traverse {
+      # from top to bottom
+      from_parent: (self, parent) ->
+        self.autocb ?= parent.autocb
+        if parent instanceof Code
+          scopes.push self
+        else if self instanceof Defer
+          # add all var created by defer to current scope
+          scope = last(scopes)
+          scope.vars = scope.vars.concat self.get_vars()
+        else if self instanceof Code
+          self.async = false
+        true
+
+      # from bottom to top
+      from_child: (self, child) ->
+        # if any child is async, then the node is async
+        self.async ||= child.async
+        if child == last(scopes)
+          scopes.pop()
+        true
+    }
+
+  sync: ->
+    @eachChild (child) =>
+      child.sync()
+    @
 
   invert: ->
     new Op '!', this
@@ -201,6 +260,11 @@ exports.Base = class Base
       answer = answer.concat fragments
     answer
 
+  id = 0
+  uid: ->
+    "_asfn#{++id}"
+
+
 #### Block
 
 # The block is the list of expressions that forms the body of an
@@ -209,6 +273,7 @@ exports.Base = class Base
 exports.Block = class Block extends Base
   constructor: (nodes) ->
     @expressions = compact flatten nodes or []
+    @vars = []
 
   children: ['expressions']
 
@@ -248,11 +313,14 @@ exports.Block = class Block extends Base
   # ensures that the final expression is returned.
   makeReturn: (res) ->
     len = @expressions.length
+    if len == 0 && @autocb
+      @expressions.push new Return [], @autocb
+      return this
     while len--
       expr = @expressions[len]
       if expr not instanceof Comment
         @expressions[len] = expr.makeReturn res
-        @expressions.splice(len, 1) if expr instanceof Return and not expr.expression
+        @expressions.splice(len, 1) if expr instanceof Return and not expr.expression.length && !@autocb
         break
     this
 
@@ -268,8 +336,10 @@ exports.Block = class Block extends Base
     top   = o.level is LEVEL_TOP
     compiledNodes = []
 
-    for node, index in @expressions
+    for v in @vars
+      o.scope.find v
 
+    for node, index in @expressions
       node = node.unwrapAll()
       node = (node.unfoldSoak(o) or node)
       if node instanceof Block
@@ -302,6 +372,9 @@ exports.Block = class Block extends Base
   # It would be better not to generate them in the first place, but for now,
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
+    @setFlags([@])
+    @sync(@)
+
     o.indent  = if o.bare then '' else TAB
     o.level   = LEVEL_TOP
     @spaced   = yes
@@ -353,6 +426,40 @@ exports.Block = class Block extends Base
           fragments.push @makeCode (scope.assignedVariables().join ",\n#{@tab + TAB}")
         fragments.push @makeCode ";\n#{if @spaced then '\n' else ''}"
     fragments.concat post
+
+  sync: ->
+    for node, idx in @expressions
+      if node instanceof Await
+        next = @pop_next(idx)
+        node = node.sync(next)
+        @expressions.splice(idx, 1, node)
+        break
+      else if node instanceof If && node.async
+        next = @pop_next(idx)
+        if next.isEmpty()
+          name = null
+        else if name = next.expressions[0].next_name
+          # forward
+        else
+          # new next function
+          code = new Code([], next)
+          code.sync()
+          name = new Value new Literal @uid()
+          fn   = new Assign(name, code)
+          @expressions.splice(idx, 0, fn)
+        node.sync(name)
+        break
+      else if node instanceof Return
+        # remove code after return
+        @expressions.splice(idx+1)
+        break
+      else
+        node.sync()
+    @
+
+  pop_next: (idx) ->
+      Block.wrap(@expressions.splice(idx+1))
+
 
   # Wrap up the given nodes as a **Block**, unless it already happens
   # to be one.
@@ -421,8 +528,8 @@ class exports.Bool extends Base
 # A `return` is a *pureStatement* -- wrapping it in a closure wouldn't
 # make sense.
 exports.Return = class Return extends Base
-  constructor: (expr) ->
-    @expression = expr if expr and not expr.unwrap().isUndefined
+  constructor: (expr, @autocb) ->
+    @expression = expr ? []
 
   children: ['expression']
 
@@ -431,15 +538,30 @@ exports.Return = class Return extends Base
   jumps:           THIS
 
   compileToFragments: (o, level) ->
-    expr = @expression?.makeReturn()
+    expr = @expression[0]?.makeReturn()
     if expr and expr not instanceof Return then expr.compileToFragments o, level else super o, level
 
   compileNode: (o) ->
     answer = []
-    # TODO: If we call expression.compile() here twice, we'll sometimes get back different results!
-    answer.push @makeCode(@tab + "return#{[" " if @expression]}")
-    if @expression
-      answer = answer.concat @expression.compileToFragments(o, LEVEL_PAREN)
+    expr = null
+    if @autocb
+      cb = new Value new Literal 'autocb'
+      expr = new Call(cb, @expression)
+      # because of the return is always the last expression,
+      # omit is safe when use autocb
+      expr.omit_return = true
+    else if @expression.length > 1
+      @error "only autocb can return multiple value"
+    else
+      expr = @expression[0]
+
+    if expr && expr.omit_return
+      answer.push @makeCode @tab
+    else
+      # TODO: If we call expression.compile() here twice, we'll sometimes get back different results!
+      answer.push @makeCode(@tab + "return#{[" " if expr]}")
+    if expr
+      answer = answer.concat expr.compileToFragments(o, LEVEL_PAREN)
     answer.push @makeCode ";"
     return answer
 
@@ -693,6 +815,8 @@ exports.Call = class Call extends Base
         ref = 'null'
       answer = answer.concat fun
     answer = answer.concat @makeCode(".apply(#{ref}, "), splatArgs, @makeCode(")")
+
+
 
 #### Extends
 
@@ -1273,6 +1397,11 @@ exports.Code = class Code extends Base
     @bound   = tag is 'boundfunc'
     @context = '_this' if @bound
 
+    @autocb = false
+    for param in @params when param?.name?.value == 'autocb'
+      @autocb = true
+      break
+
   children: ['params', 'body']
 
   isStatement: -> !!@ctor
@@ -1323,7 +1452,7 @@ exports.Code = class Code extends Base
     @eachParamName (name, node) ->
       node.error "multiple parameters named '#{name}'" if name in uniqs
       uniqs.push name
-    @body.makeReturn() unless wasEmpty or @noReturn
+    @body.makeReturn() unless (wasEmpty or @noReturn) && !@autocb
     if @bound
       if o.scope.parent.method?.bound
         @bound = @context = o.scope.parent.method.context
@@ -1896,7 +2025,10 @@ exports.For = class For extends While
         forPartFragments  = [@makeCode("#{declare}; #{compare}; #{kvarAssign}#{increment}")]
     if @returns
       resultPart   = "#{@tab}#{rvar} = [];\n"
-      returnResult = "\n#{@tab}return #{rvar};"
+      if @autocb
+        returnResult = "\n#{@tab}return autocb(#{rvar});"
+      else
+        returnResult = "\n#{@tab}return #{rvar};"
       body.makeReturn rvar
     if @guard
       if body.expressions.length > 1
@@ -2059,6 +2191,82 @@ exports.If = class If extends Base
 
   unfoldSoak: ->
     @soak and this
+
+  sync: (name) ->
+    if @autocb || name
+      # because of async, add empty elseBody to ensure next_fn will be executed.
+      #   if a
+      #     b!
+      @elseBody ?= new Block([])
+      @elseBody.autocb = @autocb
+
+    if @elseBody?.async
+      # elseBody is async will break `else if` by `else (_fn = ->) if`
+      @elseBody.isChain = false
+
+    if name
+      # add next call to every body of If
+      for body in [@body, @elseBody] when body
+        call = new Call(name, [])
+        call.omit_return = true
+        call.next_name = name
+        body.expressions.push call
+
+    super
+
+
+exports.Await = class Await extends Base
+  constructor: (@call) ->
+    @async = true
+
+  children: ['call']
+
+  compileNode: (o, block) ->
+
+  # Await function wont return
+  makeReturn: (res) ->
+    @
+
+  sync: (next) ->
+    {call} = @
+    next.autocb = @autocb
+    call.omit_return = true
+
+    # unshift assignments
+    [def, pos] = @get_defer()
+    assigns = def.get_assigns().reverse()
+    for assign in assigns
+      assign.omit_return = true
+      next.unshift(assign)
+
+    cb = new Code([], next, 'boundfunc')
+    cb.autocb = @autocb
+
+    # replace defer to callback
+    call.args.splice(pos, 1, cb)
+
+    call.sync()
+    call
+
+  get_defer: ->
+    for arg, pos in @call.args
+      if arg instanceof Defer
+        return [arg, pos]
+    @error("cannot find defer")
+
+exports.Defer = class Defer extends Base
+  constructor: (@args) ->
+
+  children: ['args']
+
+  get_vars: ->
+    for arg in @args when v = arg.unwrap().value
+        v
+
+  get_assigns: ->
+    for arg, idx in @args
+      value = new Value new Literal("arguments[#{idx}]")
+      new Assign(arg, value)
 
 # Faux-Nodes
 # ----------
