@@ -115,7 +115,9 @@ exports.Base = class Base
     if res
       new Call new Literal("#{res}.push"), [me]
     else
-      new Return [me], @autocb
+      rt = new Return [me], @autocb
+      rt.last_expr = true
+      rt
 
   # Does this node, or any of its children, contain a node of a certain kind?
   # Recursively traverses down the *children* nodes and returns the first one
@@ -180,18 +182,12 @@ exports.Base = class Base
       true
 
 
-  setFlags: (scopes) ->
+  setFlags: ->
     @traverse {
       # from top to bottom
       from_parent: (self, parent) ->
         self.autocb ?= parent.autocb
-        if parent instanceof Code
-          scopes.push self
-        else if self instanceof Defer
-          # add all var created by defer to current scope
-          scope = last(scopes)
-          scope.vars = scope.vars.concat self.get_vars()
-        else if self instanceof Code
+        if self instanceof Code
           self.async = false
         true
 
@@ -199,6 +195,23 @@ exports.Base = class Base
       from_child: (self, child) ->
         # if any child is async, then the node is async
         self.async ||= child.async
+        true
+    }
+
+  setVars: (scopes) ->
+    @traverse {
+      # from top to bottom
+      from_parent: (self, parent) ->
+        if parent instanceof Code
+          scopes.push self
+        else if self instanceof Defer
+          # add all var created by defer to current scope
+          scope = last(scopes)
+          scope.vars = scope.vars.concat self.get_vars()
+        true
+
+      # from bottom to top
+      from_child: (self, child) ->
         if child == last(scopes)
           scopes.pop()
         true
@@ -310,7 +323,9 @@ exports.Block = class Block extends Base
   makeReturn: (res) ->
     len = @expressions.length
     if len == 0 && @autocb
-      @expressions.push new Return [], @autocb
+      ret = new Return [], @autocb
+      ret.last_expr = true
+      @expressions.push ret
       return this
     while len--
       expr = @expressions[len]
@@ -377,7 +392,8 @@ exports.Block = class Block extends Base
   # It would be better not to generate them in the first place, but for now,
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
-    @setFlags([@])
+    @setFlags()
+    @setVars([@])
     @sync(@)
 
     o.indent  = if o.bare then '' else TAB
@@ -441,9 +457,7 @@ exports.Block = class Block extends Base
   sync: ->
     for node, idx in @expressions
       if node instanceof Await
-        next = @pop_next(idx)
-        node = node.sync next
-        @expressions.splice(idx, 1, node)
+        node.next = @pop_next(idx)
         break
       else if node.async && node.constructor.name in ['For', 'If']
         next = @pop_next(idx)
@@ -453,7 +467,11 @@ exports.Block = class Block extends Base
           next = forward
         else
           @expressions.splice(idx, 0, next)
+        node.next = next
         node.sync(next)
+        break
+      else if node instanceof Return
+        @pop_next(idx)
         break
       node.sync()
     @
@@ -462,7 +480,8 @@ exports.Block = class Block extends Base
     next_block = Block.wrap(@expressions.splice(idx+1))
     next_code = new Code([], next_block, 'boundfunc')
     next_code.autocb = @autocb
-    next_code.setFlags([@])
+    next_code.setFlags()
+    next_code.sync()
     new Next(next_code)
 
   # Wrap up the given nodes as a **Block**, unless it already happens
@@ -551,10 +570,7 @@ exports.Return = class Return extends Base
     if @autocb
       cb = new Value new Literal 'autocb'
       expr = new Call(cb, @expression)
-      # because of the expressions after return has been deleted,
-      # so the return is always the last expression,
-      # omit is safe when use autocb
-      expr.omit_return = true
+      expr.omit_return = @last_expr
     else if @expression.length > 1
       @error "only autocb can return multiple value"
     else
@@ -2070,25 +2086,33 @@ exports.For = class For extends While
 
   asyncCompileNode: (o, info) ->
     {scope} = o
-    cond_check = new If(
-      new Value(new Literal info.cond),
-      new Return([new Call(new Literal 'autocb')])
-    )
+    body_name = new Value(new Literal scope.freeVariable('body'))
+    init_name = new Value(new Literal scope.freeVariable('init'))
+    step_name = new Value(new Literal scope.freeVariable('step'))
+
     info.body.autocb = true
-    info.body.setFlags([@])
+    info.body.setFlags()
     info.body.sync(@)
 
-    info.body.unshift cond_check
-    body_name = new Value(new Literal scope.freeVariable('body'))
+    cond_check = new If(
+      new Value(new Literal info.cond),
+      info.body
+    )
+
+    if @next?
+      next_name = @next.name
+      ret = new Return([new Call(next_name)])
+      cond_check.addElse ret
+    else
+      ret = new Return()
+
     body_code = new Code(
       [new Param new Literal 'autocb'],
-      info.body,
+      new Block([cond_check]),
       'boundfunc'
     )
-    # body_code.setFlags([@])
     body = new Assign(body_name, body_code)
 
-    init_name = new Value(new Literal scope.freeVariable('init'))
     init_code = new Code([],
       new Block([new Literal info.init]),
       'bountfunc'
@@ -2096,19 +2120,23 @@ exports.For = class For extends While
     init_code.noReturn = true
     init = new Assign(init_name, init_code)
 
-    step_name = new Value(new Literal scope.freeVariable('step'))
     step_code = new Code([], new Block [
-      new Value(new Literal info.step),
-      new Call(body_name)
+      new Literal(info.step),
+      new Call(body_name, [step_name])
     ])
     step_code.noReturn = true
     step = new Assign(step_name, step_code)
-    return Block.wrap([
+
+    block = Block.wrap([
       new Literal(info.init),
       step,
       body,
-      new Call(body_name)
-    ]).compileNode(o)
+      new Call(body_name, [step_name])
+    ])
+
+    code = new Code([], block, 'bountfunc')
+    rt = new Call(code)
+    block.compileNode(o)
 
   pluckDirectCall: (o, body) ->
     defs = []
@@ -2276,14 +2304,12 @@ exports.If = class If extends Base
     super
 
   sync: (next) ->
-    if @autocb
+    if @autocb && @async || next
       @elseBody ?= new Block([])
       @elseBody.autocb = @autocb
     return super unless next
 
     placeholder = next.placeholder()
-    @elseBody ?= new Block([])
-    @elseBody.autocb = @autocb
     if @elseBody?.async
       @elseBody.isChain = false
     @body.push placeholder
@@ -2296,14 +2322,8 @@ exports.Await = class Await extends Base
 
   children: ['call']
 
-  compileNode: (o, block) ->
-
-  # Await function wont return
-  makeReturn: (res) ->
-    @
-
-  sync: (next) ->
-    return super unless next
+  compileNode: (o) ->
+    next = @next
     {call} = @
     call.omit_return = true
     next = next.code
@@ -2318,7 +2338,15 @@ exports.Await = class Await extends Base
     # replace defer to callback
     call.args.splice(pos, 1, next)
     call.sync()
-    call
+    call.compileNode(o)
+
+  # Await function wont return
+  makeReturn: (res) ->
+    @
+
+  sync: (next) ->
+    @next = next
+    @
 
   get_defer: ->
     for arg, pos in @call.args
@@ -2343,7 +2371,7 @@ exports.Defer = class Defer extends Base
 exports.Next = class Next extends Base
   constructor: (@code) ->
     @autocb = @code.autocb
-    if @isEmpty && @autocb
+    if @isEmpty() && @autocb
       @name = new Literal 'autocb'
 
   children: ['code']
