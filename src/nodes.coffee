@@ -13,6 +13,7 @@ Error.stackTraceLimit = Infinity
 addLocationDataFn, locationDataToString, throwSyntaxError} = require './helpers'
 
 puts = (v) -> console.log v.toString()
+p = console.log
 
 # Functions required by parser
 exports.extend = extend
@@ -260,11 +261,6 @@ exports.Base = class Base
       answer = answer.concat fragments
     answer
 
-  id = 0
-  uid: ->
-    "_asfn#{++id}"
-
-
 #### Block
 
 # The block is the list of expressions that forms the body of an
@@ -338,6 +334,15 @@ exports.Block = class Block extends Base
 
     for v in @vars
       o.scope.find v
+
+    nodes = []
+
+    for node, index in @expressions
+      if node instanceof Next
+        nodes.push node.assign(o)
+        continue
+      nodes.push node
+    @expressions = nodes
 
     for node, index in @expressions
       node = node.unwrapAll()
@@ -425,41 +430,40 @@ exports.Block = class Block extends Base
           fragments.push @makeCode ",\n#{@tab + TAB}" if declars
           fragments.push @makeCode (scope.assignedVariables().join ",\n#{@tab + TAB}")
         fragments.push @makeCode ";\n#{if @spaced then '\n' else ''}"
+      else if fragments.length && post.length
+        # beauty for
+        # ->
+        #   a
+        #   b()
+        fragments.push @makeCode "\n"
     fragments.concat post
 
   sync: ->
     for node, idx in @expressions
       if node instanceof Await
         next = @pop_next(idx)
-        node = node.sync(next)
+        node = node.sync next
         @expressions.splice(idx, 1, node)
         break
-      else if node instanceof If && node.async
+      else if node.async && node.constructor.name in ['For', 'If']
         next = @pop_next(idx)
         if next.isEmpty()
-          name = null
-        else if name = next.expressions[0].next_name
-          # forward
+          next = null
+        else if forward = next.forward()
+          next = forward
         else
-          # new next function
-          code = new Code([], next)
-          code.sync()
-          name = new Value new Literal @uid()
-          fn   = new Assign(name, code)
-          @expressions.splice(idx, 0, fn)
-        node.sync(name)
+          @expressions.splice(idx, 0, next)
+        node.sync(next)
         break
-      else if node instanceof Return
-        # remove code after return
-        @expressions.splice(idx+1)
-        break
-      else
-        node.sync()
+      node.sync()
     @
 
   pop_next: (idx) ->
-      Block.wrap(@expressions.splice(idx+1))
-
+    next_block = Block.wrap(@expressions.splice(idx+1))
+    next_code = new Code([], next_block, 'boundfunc')
+    next_code.autocb = @autocb
+    next_code.setFlags([@])
+    new Next(next_code)
 
   # Wrap up the given nodes as a **Block**, unless it already happens
   # to be one.
@@ -547,7 +551,8 @@ exports.Return = class Return extends Base
     if @autocb
       cb = new Value new Literal 'autocb'
       expr = new Call(cb, @expression)
-      # because of the return is always the last expression,
+      # because of the expressions after return has been deleted,
+      # so the return is always the last expression,
       # omit is safe when use autocb
       expr.omit_return = true
     else if @expression.length > 1
@@ -937,7 +942,11 @@ exports.Range = class Range extends Base
     stepPart = "#{idxName} = #{stepPart}" if namedIndex
 
     # The final loop body.
-    [@makeCode "#{varPart}; #{condPart}; #{stepPart}"]
+    r = [@makeCode "#{varPart}; #{condPart}; #{stepPart}"]
+    r.init = varPart
+    r.cond = condPart
+    r.step = stepPart
+    r
 
 
   # When used as a value, expand the range into the equivalent array.
@@ -1995,8 +2004,12 @@ exports.For = class For extends While
     guardPart = ''
     defPart   = ''
     idt1      = @tab + TAB
+    info      = {}
     if @range
       forPartFragments = source.compileToFragments merge(o, {index: ivar, name, @step})
+      info.init = forPartFragments.init
+      info.cond = forPartFragments.cond
+      info.step = forPartFragments.step
     else
       svar    = @source.compile o, LEVEL_LIST
       if (name or @own) and not IDENTIFIER.test svar
@@ -2023,6 +2036,10 @@ exports.For = class For extends While
         else
           increment = "#{if kvar isnt ivar then "++#{ivar}" else "#{ivar}++"}"
         forPartFragments  = [@makeCode("#{declare}; #{compare}; #{kvarAssign}#{increment}")]
+        info.init = declare
+        info.cond = compare
+        info.step = "#{kvarAssign} #{increment}"
+
     if @returns
       resultPart   = "#{@tab}#{rvar} = [];\n"
       if @autocb
@@ -2042,12 +2059,56 @@ exports.For = class For extends While
     if @object
       forPartFragments   = [@makeCode("#{kvar} in #{svar}")]
       guardPart = "\n#{idt1}if (!#{utility 'hasProp'}.call(#{svar}, #{kvar})) continue;" if @own
+    info.body = body
+    return @asyncCompileNode(o, info) if @async
     bodyFragments = body.compileToFragments merge(o, indent: idt1), LEVEL_TOP
     if bodyFragments and (bodyFragments.length > 0)
       bodyFragments = [].concat @makeCode("\n"), bodyFragments, @makeCode("\n")
     [].concat defPartFragments, @makeCode("#{resultPart or ''}#{@tab}for ("),
       forPartFragments, @makeCode(") {#{guardPart}#{varPart}"), bodyFragments,
       @makeCode("#{@tab}}#{returnResult or ''}")
+
+  asyncCompileNode: (o, info) ->
+    {scope} = o
+    cond_check = new If(
+      new Value(new Literal info.cond),
+      new Return([new Call(new Literal 'autocb')])
+    )
+    info.body.autocb = true
+    info.body.setFlags([@])
+    info.body.sync(@)
+
+    info.body.unshift cond_check
+    body_name = new Value(new Literal scope.freeVariable('body'))
+    body_code = new Code(
+      [new Param new Literal 'autocb'],
+      info.body,
+      'boundfunc'
+    )
+    # body_code.setFlags([@])
+    body = new Assign(body_name, body_code)
+
+    init_name = new Value(new Literal scope.freeVariable('init'))
+    init_code = new Code([],
+      new Block([new Literal info.init]),
+      'bountfunc'
+    )
+    init_code.noReturn = true
+    init = new Assign(init_name, init_code)
+
+    step_name = new Value(new Literal scope.freeVariable('step'))
+    step_code = new Code([], new Block [
+      new Value(new Literal info.step),
+      new Call(body_name)
+    ])
+    step_code.noReturn = true
+    step = new Assign(step_name, step_code)
+    return Block.wrap([
+      new Literal(info.init),
+      step,
+      body,
+      new Call(body_name)
+    ]).compileNode(o)
 
   pluckDirectCall: (o, body) ->
     defs = []
@@ -2192,7 +2253,7 @@ exports.If = class If extends Base
   unfoldSoak: ->
     @soak and this
 
-  sync: (name) ->
+  asyncPrecompile: ->
     if @autocb || name
       # because of async, add empty elseBody to ensure next_fn will be executed.
       #   if a
@@ -2214,6 +2275,20 @@ exports.If = class If extends Base
 
     super
 
+  sync: (next) ->
+    if @autocb
+      @elseBody ?= new Block([])
+      @elseBody.autocb = @autocb
+    return super unless next
+
+    placeholder = next.placeholder()
+    @elseBody ?= new Block([])
+    @elseBody.autocb = @autocb
+    if @elseBody?.async
+      @elseBody.isChain = false
+    @body.push placeholder
+    @elseBody.push placeholder
+    super
 
 exports.Await = class Await extends Base
   constructor: (@call) ->
@@ -2228,23 +2303,20 @@ exports.Await = class Await extends Base
     @
 
   sync: (next) ->
+    return super unless next
     {call} = @
-    next.autocb = @autocb
     call.omit_return = true
+    next = next.code
 
     # unshift assignments
     [def, pos] = @get_defer()
     assigns = def.get_assigns().reverse()
     for assign in assigns
-      assign.omit_return = true
-      next.unshift(assign)
-
-    cb = new Code([], next, 'boundfunc')
-    cb.autocb = @autocb
+      assign.autocb = @autocb
+      next.body.unshift(assign)
 
     # replace defer to callback
-    call.args.splice(pos, 1, cb)
-
+    call.args.splice(pos, 1, next)
     call.sync()
     call
 
@@ -2267,6 +2339,42 @@ exports.Defer = class Defer extends Base
     for arg, idx in @args
       value = new Value new Literal("arguments[#{idx}]")
       new Assign(arg, value)
+
+exports.Next = class Next extends Base
+  constructor: (@code) ->
+    @autocb = @code.autocb
+    if @isEmpty && @autocb
+      @name = new Literal 'autocb'
+
+  children: ['code']
+  isEmpty: ->
+    @code.body?.isEmpty()
+
+  forward: ->
+    if (placeholder = @code.body?.expressions?[0]) instanceof NextPlaceholder
+      return placeholder.next
+    null
+
+  assign: (o) ->
+    if @name
+      return new Block()
+    @name = new Literal o.scope.freeVariable('fn')
+    new Assign(
+      @name,
+      @code
+    )
+
+  placeholder: ->
+    new NextPlaceholder(@)
+
+exports.NextPlaceholder = class NextPlaceholder extends Base
+  constructor: (@next) ->
+    @omit_return = true
+    @autocb = @next.autocb
+
+  compileNode: (o) ->
+    rt = new Call(@next.name, []).compileNode(o)
+    rt
 
 # Faux-Nodes
 # ----------
