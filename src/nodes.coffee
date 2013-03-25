@@ -457,9 +457,9 @@ exports.Block = class Block extends Base
   sync: ->
     for node, idx in @expressions
       if node instanceof Await
-        node.next = @pop_next(idx)
+        node.next ?= @pop_next(idx)
         break
-      else if node.async && node.constructor.name in ['For', 'If']
+      else if node.async && node.constructor.name in ['For', 'If', 'While']
         next = @pop_next(idx)
         if next.isEmpty()
           next = null
@@ -467,7 +467,7 @@ exports.Block = class Block extends Base
           next = forward
         else
           @expressions.splice(idx, 0, next)
-        node.next = next
+        node.next ?= next
         node.sync(next)
         break
       else if node instanceof Return
@@ -1654,6 +1654,7 @@ exports.While = class While extends Base
   # *while* can be used as a part of a larger expression -- while loops may
   # return an array containing the computed result of each iteration.
   compileNode: (o) ->
+    return @asyncCompileNode(o) if @async
     o.indent += TAB
     set      = ''
     {body}   = this
@@ -1674,6 +1675,56 @@ exports.While = class While extends Base
     if @returns
       answer.push @makeCode "\n#{@tab}return #{rvar};"
     answer
+
+  asyncCompileNode: (o) ->
+    {scope} = o
+    body_name = new Value(new Literal scope.freeVariable('body'))
+    step_name = new Value(new Literal scope.freeVariable('step'))
+
+    body = @body
+
+    body.autocb = true
+    body.setFlags()
+    body.sync(@)
+
+    cond_check = new If(
+      @condition,
+      body
+    )
+
+    if @next?
+      next_name = @next.name
+    else
+      {next_name} = o
+
+    if next_name
+      call = new Call(next_name)
+      call.omit_return = true
+      cond_check.addElse call
+    else
+      ret = new Return()
+
+    body_code = new Code(
+      [new Param new Literal 'autocb'],
+      new Block([cond_check]),
+      'boundfunc'
+    )
+    body = new Assign(body_name, body_code)
+
+    step_code = new Code([], new Block [
+      new Call(body_name, [step_name])
+    ])
+    step = new Assign(step_name, step_code)
+
+    block = Block.wrap([
+      step,
+      body,
+      new Call(body_name, [step_name])
+    ])
+
+    o.next_name = next_name
+    block.compileNode(o)
+
 
 #### Op
 
@@ -1992,7 +2043,7 @@ exports.For = class For extends While
     @name.error 'cannot pattern match over range loops' if @range and @pattern
     @returns = false
 
-  children: ['body', 'source', 'guard', 'step']
+  children: ['body', 'source', 'guard', 'step', 'next']
 
   # Welcome to the hairiest method in all of CoffeeScript. Handles the inner
   # loop, filtering, stepping, and result saving for array, object, and range
@@ -2054,7 +2105,7 @@ exports.For = class For extends While
         forPartFragments  = [@makeCode("#{declare}; #{compare}; #{kvarAssign}#{increment}")]
         info.init = declare
         info.cond = compare
-        info.step = "#{kvarAssign} #{increment}"
+        info.step = "#{kvarAssign}#{increment}"
 
     if @returns
       resultPart   = "#{@tab}#{rvar} = [];\n"
@@ -2076,6 +2127,7 @@ exports.For = class For extends While
       forPartFragments   = [@makeCode("#{kvar} in #{svar}")]
       guardPart = "\n#{idt1}if (!#{utility 'hasProp'}.call(#{svar}, #{kvar})) continue;" if @own
     info.body = body
+    info.vars = varPart
     return @asyncCompileNode(o, info) if @async
     bodyFragments = body.compileToFragments merge(o, indent: idt1), LEVEL_TOP
     if bodyFragments and (bodyFragments.length > 0)
@@ -2098,17 +2150,25 @@ exports.For = class For extends While
       new Value(new Literal info.cond),
       info.body
     )
-
     if @next?
       next_name = @next.name
-      ret = new Return([new Call(next_name)])
-      cond_check.addElse ret
+    else
+      {next_name} = o
+
+    if next_name
+      call = new Call(next_name)
+      call.omit_return = true
+      cond_check.addElse call
     else
       ret = new Return()
 
+    vars = info.vars?.trim().slice(0,-1) ? ""
     body_code = new Code(
       [new Param new Literal 'autocb'],
-      new Block([cond_check]),
+      new Block([
+        new Literal(vars),
+        cond_check
+      ]),
       'boundfunc'
     )
     body = new Assign(body_name, body_code)
@@ -2134,8 +2194,7 @@ exports.For = class For extends While
       new Call(body_name, [step_name])
     ])
 
-    code = new Code([], block, 'bountfunc')
-    rt = new Call(code)
+    o.next_name = next_name
     block.compileNode(o)
 
   pluckDirectCall: (o, body) ->
@@ -2320,7 +2379,7 @@ exports.Await = class Await extends Base
   constructor: (@call) ->
     @async = true
 
-  children: ['call']
+  children: ['call', 'next']
 
   compileNode: (o) ->
     next = @next
@@ -2387,6 +2446,8 @@ exports.Next = class Next extends Base
     if @name
       return new Block()
     @name = new Literal o.scope.freeVariable('fn')
+    if o.next_name
+      @code.body.push new Call(o.next_name)
     new Assign(
       @name,
       @code
