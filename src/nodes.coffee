@@ -1657,53 +1657,48 @@ exports.While = class While extends Base
     answer
 
   asyncCompileNode: (o) ->
-    {scope} = o
-    body_name = new Value(new Literal scope.freeVariable('body'))
-    step_name = new Value(new Literal scope.freeVariable('step'))
+    o.flows.push @flow if @flow
+    flow = o.flows.last()
+    answer = [@makeCode @tab]
+    names = {}
+    for name in ['body', 'done']
+      names[name] = o.scope.freeVariable(name)
 
-    body = @body
+    blocks = new Block([])
 
-    body.autocb = true
-    body.setFlags()
-    body.sync(@)
-
-    cond_check = new If(
-      @condition,
-      body
-    )
-
-    if @next?
-      next_name = @next.name
+    # done, flow.next equals _fn in the most of situation
+    if flow.next
+      done = flow.next
     else
-      {next_name} = o
+      done = names.done
+      done_fn = new Assign(
+        new Literal(names.done),
+        new Code([], new Block(), 'boundfunc', flow)
+      )
+      blocks.push done_fn
 
-    if next_name
-      call = new Call(next_name)
-      call.omit_return = true
-      cond_check.addElse call
-    else
-      ret = new Return()
-
-    body_code = new Code(
-      [new Param new Literal 'autocb'],
-      new Block([cond_check]),
-      'boundfunc'
+    # body
+    body_fn = new Assign(
+      new Literal(names.body),
+      new Code([], new Block([
+        ifPart = new If(
+          @condition,
+          @body
+        ).addElse(
+          ret = new Call(new Literal(done))
+        )
+      ]), 'boundfunc', {next: names.body, return: flow.return, break: done, continue: names.body})
     )
-    body = new Assign(body_name, body_code)
+    ret.omit_return = true
+    blocks.push body_fn
 
-    step_code = new Code([], new Block [
-      new Call(body_name, [step_name])
-    ])
-    step = new Assign(step_name, step_code)
+    # call body
+    call_body = new Call(new Literal(names.body))
+    blocks.push call_body
 
-    block = Block.wrap([
-      step,
-      body,
-      new Call(body_name, [step_name])
-    ])
-
-    o.next_name = next_name
-    block.compileNode(o)
+    answer = blocks.compileNode(o)
+    o.flows.pop() if @flow
+    return answer
 
 
 #### Op
