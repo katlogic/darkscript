@@ -344,6 +344,9 @@ exports.Block = class Block extends Base
         compiledNodes.push fragments
       else
         compiledNodes.push node.compileToFragments o, LEVEL_LIST
+      if node instanceof Return
+        @expressions.splice(index+1)
+        break
     if top
       if @spaced
         return [].concat @joinFragmentArrays(compiledNodes, '\n\n'), @makeCode("\n")
@@ -364,6 +367,7 @@ exports.Block = class Block extends Base
       else if node.async && node.constructor.name in ['For', 'If', 'While']
         next_code = @pop_next_code(flow, index)
         if next_code.body.isEmpty()
+        else if next_code.body.expressions[0].can_forward
         else
           next_name = o.scope.freeVariable('fn')
           next = new Assign(new Literal(next_name), next_code)
@@ -1661,7 +1665,7 @@ exports.While = class While extends Base
     flow = o.flows.last()
     answer = [@makeCode @tab]
     names = {}
-    for name in ['body', 'done']
+    for name in ['body']
       names[name] = o.scope.freeVariable(name)
 
     blocks = new Block([])
@@ -1670,7 +1674,7 @@ exports.While = class While extends Base
     if flow.next
       done = flow.next
     else
-      done = names.done
+      done = names.done = o.scope.freeVariable('done')
       done_fn = new Assign(
         new Literal(names.done),
         new Code([], new Block(), 'boundfunc', flow)
@@ -2117,7 +2121,7 @@ exports.For = class For extends While
     flow = o.flows.last()
     answer = [@makeCode @tab]
     names = {}
-    for name in ['body', 'step', 'done']
+    for name in ['body', 'step']
       names[name] = o.scope.freeVariable(name)
 
     # initPart
@@ -2128,7 +2132,7 @@ exports.For = class For extends While
     # _body = =>
     #   varPart (item = items[_i])
     #   if (condPart)
-    #     bodyPart
+    #     body
     #   else
     #     _fn or _done
     # _body(_step)
@@ -2139,7 +2143,7 @@ exports.For = class For extends While
     if flow.next
       done = flow.next
     else
-      done = names.done
+      done = names.done = o.scope.freeVariable('done')
       done_fn = new Assign(
         new Literal(names.done),
         new Code([], new Block(), 'boundfunc', flow)
@@ -2283,7 +2287,7 @@ exports.If = class If extends Base
 
   compileNode: (o) ->
     o.flows.push @flow if @flow
-    @asyncCompileNode(o)
+    @asyncCompileNode(o) if @async
     answer = if @isStatement o then @compileStatement o else @compileExpression o
     o.flows.pop() if @flow
     answer
@@ -2291,11 +2295,14 @@ exports.If = class If extends Base
   asyncCompileNode: (o) ->
     flow = o.flows.last()
 
-    if @async && flow.next && !@elseBody
-      # we have missed makeReturn so have to add ret manual
+    if flow.next && !@elseBody
+      @elseBody ?= new Block()
+
+    for body in [@body, @elseBody] when body
       ret = new Return()
       ret.generated = true
-      @elseBody = new Block([ret])
+      ret.can_forward = true
+      body.push ret
 
     @
 
