@@ -198,6 +198,10 @@ exports.Base = class Base
         true
     }
 
+  replaceAsyncStatement: ->
+    @eachChild (child) ->
+      child.replaceAsyncStatement()
+
   invert: ->
     new Op '!', this
 
@@ -305,6 +309,12 @@ exports.Block = class Block extends Base
       return this
     while len--
       expr = @expressions[len]
+      if res && expr instanceof Await
+        value = expr.get_defer()[0].args[0] || new Literal 'arguments[0]'
+        ret = value.makeReturn(res)
+        ret.generated = true
+        @expressions.splice(len+1, 0, ret)
+        break
       if expr not instanceof Comment
         @expressions[len] = expr.makeReturn res
         # TODO return Return when flow.next is empty
@@ -374,6 +384,10 @@ exports.Block = class Block extends Base
           node.flow = extend(flow, {next: next_name})
           @expressions.splice(index, 0, next)
         break
+      ###
+      else if node.async && node instanceof Assign
+        break
+      ###
 
     @
 
@@ -390,6 +404,9 @@ exports.Block = class Block extends Base
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
     @setFlags()
+    # TODO: Replace any async to arguments[0] currently only assignment
+    @replaceAsyncStatement()
+
 
     o.indent  = if o.bare then '' else TAB
     o.level   = LEVEL_TOP
@@ -452,6 +469,41 @@ exports.Block = class Block extends Base
 
   # Wrap up the given nodes as a **Block**, unless it already happens
   # to be one.
+  replaceAsyncStatement: ->
+    for node, index in @expressions
+      if node.async && node instanceof Assign && !(node.value instanceof Code)
+        # replace
+        #
+        #   xs = ASYNC_LOOP
+        #   ELSE
+        #
+        # to
+        #
+        #   ((autocb) ->
+        #       ASYNC_LOOP
+        #   )( ->
+        #      xs = arguments[0]
+        #      ELSE
+        #   )
+        # replace x = (y )
+
+        expr = node.value
+        expr.returns = true
+        node.value = new Value new Literal 'arguments[0]'
+        node.async = false
+        next_code = new Code([], new Block(@expressions.splice(index+1)), 'boundfunc')
+        next_code.async = true
+        next_code.body.unshift node
+        call = new Call(
+          code = new Code([new Param new Literal 'autocb'], new Block([expr]), 'boundfunc'),
+          [next_code]
+        )
+        code.async = true
+        @expressions.splice(index, 1, call)
+        call.replaceAsyncStatement()
+        break
+      node.replaceAsyncStatement()
+    true
   @wrap: (nodes) ->
     return nodes[0] if nodes.length is 1 and nodes[0] instanceof Block
     new Block nodes
@@ -1272,6 +1324,7 @@ exports.Assign = class Assign extends Base
     if @value instanceof Code and match = METHOD_DEF.exec name
       @value.klass = match[1] if match[1]
       @value.name  = match[2] ? match[3] ? match[4] ? match[5]
+    # LEVEL_LIST will trigger compile in closure (statment) for loop
     val = @value.compileToFragments o, LEVEL_LIST
     return (compiledName.concat @makeCode(": "), val) if @context is 'object'
     answer = compiledName.concat @makeCode(" #{ @context or '=' } "), val
@@ -1419,6 +1472,7 @@ exports.Code = class Code extends Base
   # arrow, generates a wrapper that saves the current value of `this` through
   # a closure.
   compileNode: (o) ->
+    o.sharedScope ||= @async
     o.scope         = new Scope o.scope, @body, this
     o.scope.shared  = del(o, 'sharedScope')
     o.indent        += TAB
@@ -1638,7 +1692,10 @@ exports.While = class While extends Base
   # return an array containing the computed result of each iteration.
   compileNode: (o) ->
     info = {}
-    o.indent += TAB
+    @returns  ||= @return_results
+
+    unless @async
+      o.indent += TAB
     set      = ''
     {body}   = this
     if body.isEmpty()
@@ -1656,6 +1713,7 @@ exports.While = class While extends Base
       unless @async
         body = [].concat @makeCode("\n"), (body.compileToFragments o, LEVEL_TOP), @makeCode("\n#{@tab}")
     info.body = body
+    info.results = rvar
     return @asyncCompileNode(o, info) if @async
     answer = [].concat @makeCode(set + @tab + "while ("), @condition.compileToFragments(o, LEVEL_PAREN),
       @makeCode(") {"), body, @makeCode("}")
@@ -1674,20 +1732,27 @@ exports.While = class While extends Base
     blocks = new Block([])
 
     # done, flow.next equals _fn in the most of situation
-    if flow.next
+    if flow.next && !@returns
       done = flow.next
     else
+      if @returns
+        done_body = [new Literal info.results]
+      else
+        done_body = []
       done = names.done = o.scope.freeVariable('done')
       done_fn = new Assign(
         new Literal(names.done),
-        new Code([], new Block(), 'boundfunc', flow)
+        new Code([], new Block(done_body), 'boundfunc', flow)
       )
       blocks.push done_fn
+
+    if @returns
+      blocks.push new Literal "#{info.results} = []"
 
     # body
     body_fn = new Assign(
       new Literal(names.body),
-      new Code([], new Block([
+      code = new Code([], new Block([
         ifPart = new If(
           @condition,
           info.body
@@ -1696,6 +1761,7 @@ exports.While = class While extends Base
         )
       ]), 'boundfunc', {next: names.body, return: flow.return, break: done, continue: names.body})
     )
+    code.async = true
     ret.omit_return = true
     blocks.push body_fn
 
@@ -2173,7 +2239,7 @@ exports.For = class For extends While
     info.body.unshift(new Literal(info.varPart.trim().slice(0,-1))) if info.varPart
     body_fn = new Assign(
       new Literal(names.body),
-      new Code([], new Block([
+      code = new Code([], new Block([
         ifPart = new If(
           new Literal(info.condPart),
           info.body
@@ -2182,6 +2248,7 @@ exports.For = class For extends While
         )
       ]), 'boundfunc', {next: names.step, return: flow.return, break: done, continue: names.step})
     )
+    code.async = true
     ret.omit_return = true
     blocks.push body_fn
 
@@ -2303,7 +2370,7 @@ exports.If = class If extends Base
     if flow.next && !@elseBody
       @elseBody ?= new Block()
 
-    for body in [@body, @elseBody] when body
+    for body in [@body, @elseBody] when body instanceof Block
       ret = new Return()
       ret.generated = true
       ret.can_forward = true
