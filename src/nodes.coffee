@@ -307,7 +307,8 @@ exports.Block = class Block extends Base
       expr = @expressions[len]
       if expr not instanceof Comment
         @expressions[len] = expr.makeReturn res
-        @expressions.splice(len, 1) if expr instanceof Return and not expr.expression.length && !@autocb
+        # TODO return Return when flow.next is empty
+        # @expressions.splice(len, 1) if expr instanceof Return and not expr.expression.length
         break
     this
 
@@ -358,24 +359,24 @@ exports.Block = class Block extends Base
     flow = extend {}, o.flows.last()
     for node, index in @expressions
       if node instanceof Await
-        node.next_code = @pop_next_code(o, index)
+        node.next_code = @pop_next_code(flow, index)
         break
       else if node.async && node.constructor.name in ['For', 'If', 'While']
-        next_code = @pop_next_code(o, index)
+        next_code = @pop_next_code(flow, index)
         if next_code.body.isEmpty()
         else
           next_name = o.scope.freeVariable('fn')
-          flow.next = next_name
           next = new Assign(new Literal(next_name), next_code)
-          node.flow = flow
+          node.flow = extend(flow, {next: next_name})
           @expressions.splice(index, 0, next)
         break
 
     @
 
-  pop_next_code: (o, idx) ->
+  pop_next_code: (flow, idx) ->
     block = new Block(@expressions.splice(idx+1))
     code = new Code([], block, 'boundfunc')
+    code.flow = extend({}, flow)
     block.async = code.async = true
     code
 
@@ -478,6 +479,15 @@ exports.Literal = class Literal extends Base
     return this if @value is 'continue' and not o?.loop
 
   compileNode: (o) ->
+    flow = o.flows.last()
+    if @isStatement() && fn = flow[@value]
+      o.flows.push()
+      answer = new Return(
+        [new Call(new Literal(fn))]
+      ).compileToFragments(o, LEVEL_TOP)
+      o.flows.pop()
+      return answer
+
     code = if @value is 'this'
       if o.scope.method?.bound then o.scope.method.context else @value
     else if @value.reserved
@@ -1380,7 +1390,7 @@ exports.Assign = class Assign extends Base
 # When for the purposes of walking the contents of a function body, the Code
 # has no *children* -- they're within the inner scope.
 exports.Code = class Code extends Base
-  constructor: (params, body, tag) ->
+  constructor: (params, body, tag, @flow) ->
     @params  = params or []
     @body    = body or new Block
     @bound   = tag is 'boundfunc'
@@ -1388,7 +1398,8 @@ exports.Code = class Code extends Base
     @autocb = false
     for param in @params when param.name?.value == 'autocb'
       @autocb = true
-      @flow = {next: 'autocb', return: 'autocb'}
+      unless @flow
+        @flow = {next: 'autocb', return: 'autocb'}
       break
     @
 
@@ -1407,8 +1418,7 @@ exports.Code = class Code extends Base
     o.scope         = new Scope o.scope, @body, this
     o.scope.shared  = del(o, 'sharedScope')
     o.indent        += TAB
-    if @flow
-      o.flows.push @flow
+    o.flows.push(@flow)
     delete o.bare
     delete o.isExistentialEquals
     params = []
@@ -1462,8 +1472,7 @@ exports.Code = class Code extends Base
     answer = answer.concat(@makeCode("\n"), @body.compileWithDeclarations(o), @makeCode("\n#{@tab}")) unless @body.isEmpty()
     answer.push @makeCode '}'
 
-    if @flow
-      o.flows.pop()
+    o.flows.pop()
     return [@makeCode(@tab), answer...] if @ctor
     if @front or (o.level >= LEVEL_ACCESS) then @wrapInBraces answer else answer
 
@@ -2110,99 +2119,75 @@ exports.For = class For extends While
 
   asyncCompileNode: (o, info) ->
     o.flows.push @flow if @flow
-    answer = []
-    {scope} = o
     flow = o.flows.last()
-    return_value = new Value new Literal return_name
-    next_name = flow.next
-    body_name = scope.freeVariable('body')
-    init_name = scope.freeVariable('init')
-    step_name = scope.freeVariable('step')
-    done_name = scope.freeVariable('done')
-    return_name = scope.freeVariable('return')
-    body_value = new Value new Literal body_name
-    init_value = new Value new Literal init_name
-    step_value = new Value new Literal step_name
-    return_value = new Value new Literal return_name
-    done_value = new Value new Literal done_name
-    next_value = new Value new Literal next_name
-
-    if @autocb
-      return_fn = new Assign return_value, new Literal('autocb')
-    else
-      return_name = null
+    answer = [@makeCode @tab]
+    names = {}
+    for name in ['body', 'step', 'done']
+      names[name] = o.scope.freeVariable(name)
 
     # initPart
+    # _fn or _done
     # _step = =>
     #   stepPart
     #   _body(_step)
     # _body = =>
-    #   varPart
+    #   varPart (item = items[_i])
     #   if (condPart)
     #     bodyPart
     #   else
-    #     next()
+    #     _fn or _done
     # _body(_step)
 
-    body = new Block([])
+    blocks = new Block([])
 
-    # varPart
-    if info.varPart
-      varPart = info.varPart.trim().slice(0,-1)
-      body.push varPart
-
-    # ifPart
-    ifPart = new If new Value(new Literal info.condPart), info.body
-
-    if @flow
-      done_name = next_name
+    # done, flow.next equals _fn in the most of situation
+    if flow.next
+      done = flow.next
     else
-      if next_name
-        done_code = new Code([], new Block [new Call(next_value, []) ])
-      else
-        done_code = new Code([], new Block [])
-      done_fn = new Assign(done_value, done_code)
+      done = names.done
+      done_fn = new Assign(
+        new Literal(names.done),
+        new Code([], new Block(), 'boundfunc', flow)
+      )
+      blocks.push done_fn
 
-    call = new Call(new Literal(done_name), [])
-    call.omit_return = true
-    ifPart.addElse call
+    # init
+    blocks.push new Literal info.initPart
 
-    body.push ifPart
+    # step
+    step_fn = new Assign(
+      new Literal(names.step),
+      new Code([], new Block([
+        new Literal(info.stepPart),
+        ret = new Call(new Literal(names.body))
+      ]))
+    )
+    ret.omit_return = true
+    blocks.push step_fn
 
-    # create _body
-    body_code = new Code [new Param new Literal 'autocb'], body, 'boundfunc'
-    body_code.setFlags()
-    body_fn = new Assign(body_value, body_code)
+    # body
+    info.body.unshift(new Literal(info.varPart.trim().slice(0,-1))) if info.varPart
+    body_fn = new Assign(
+      new Literal(names.body),
+      new Code([], new Block([
+        ifPart = new If(
+          new Literal(info.condPart),
+          info.body
+        ).addElse(
+          ret = new Call(new Literal(done))
+        )
+      ]), 'boundfunc', {next: names.step, return: flow.return, break: done, continue: names.step})
+    )
+    ret.omit_return = true
+    blocks.push body_fn
 
-    # create _step
-    step_code = new Code([], new Block [
-      new Literal(info.stepPart),
-      new Call(body_value, [step_value])
-    ])
-    step_code.noReturn = true
-    step_fn = new Assign(step_value, step_code)
+    # call body
+    call_body = new Call(new Literal(names.body))
+    blocks.push call_body
 
-    o.flows.push()
-    blocks = []
-    blocks.push done_fn if done_fn
-    blocks.push step_fn if step_fn
-    answer = answer.concat(new Block(blocks).compileToFragments(o, LEVEL_TOP))
-    answer.push @makeCode("\n")
-    o.flows.pop()
-
-    # combine _body and _step
-    block = Block.wrap([
-      new Literal(info.initPart),
-      body_fn,
-      new Call(body_value, [step_value])
-    ])
-
-    if return_fn
-      block.unshift return_fn
-
-    answer = answer.concat block.compileToFragments(o, LEVEL_TOP)
+    answer = blocks.compileNode(o)
     o.flows.pop() if @flow
-    answer
+    return answer
 
   pluckDirectCall: (o, body) ->
     defs = []
@@ -2304,14 +2289,14 @@ exports.If = class If extends Base
   compileNode: (o) ->
     o.flows.push @flow if @flow
     @asyncCompileNode(o)
-    rt = if @isStatement o then @compileStatement o else @compileExpression o
+    answer = if @isStatement o then @compileStatement o else @compileExpression o
     o.flows.pop() if @flow
-    rt
+    answer
 
   asyncCompileNode: (o) ->
     flow = o.flows.last()
 
-    if flow.next && !@elseBody
+    if @async && flow.next && !@elseBody
       # we have missed makeReturn so have to add ret manual
       ret = new Return()
       ret.generated = true
