@@ -1637,8 +1637,7 @@ exports.While = class While extends Base
   # *while* can be used as a part of a larger expression -- while loops may
   # return an array containing the computed result of each iteration.
   compileNode: (o) ->
-    return @asyncCompileNode(o) if @async
-
+    info = {}
     o.indent += TAB
     set      = ''
     {body}   = this
@@ -1650,17 +1649,21 @@ exports.While = class While extends Base
         set  = "#{@tab}#{rvar} = [];\n"
       if @guard
         if body.expressions.length > 1
-          body.expressions.unshift new If (new Parens @guard).invert(), new Literal "continue"
+          body.expressions.unshift ifPart = new If (new Parens @guard).invert(), new Literal "continue"
         else
-          body = Block.wrap [new If @guard, body] if @guard
-      body = [].concat @makeCode("\n"), (body.compileToFragments o, LEVEL_TOP), @makeCode("\n#{@tab}")
+          body = Block.wrap [ifPart = new If @guard, body] if @guard
+        ifPart.async = @async
+      unless @async
+        body = [].concat @makeCode("\n"), (body.compileToFragments o, LEVEL_TOP), @makeCode("\n#{@tab}")
+    info.body = body
+    return @asyncCompileNode(o, info) if @async
     answer = [].concat @makeCode(set + @tab + "while ("), @condition.compileToFragments(o, LEVEL_PAREN),
       @makeCode(") {"), body, @makeCode("}")
     if @returns
       answer.push @makeCode "\n#{@tab}return #{rvar};"
     answer
 
-  asyncCompileNode: (o) ->
+  asyncCompileNode: (o, info) ->
     o.flows.push @flow if @flow
     flow = o.flows.last()
     answer = [@makeCode @tab]
@@ -1687,7 +1690,7 @@ exports.While = class While extends Base
       new Code([], new Block([
         ifPart = new If(
           @condition,
-          @body
+          info.body
         ).addElse(
           ret = new Call(new Literal(done))
         )
@@ -2030,6 +2033,8 @@ exports.For = class For extends While
   # some cannot.
   compileNode: (o) ->
     flow = o.flows.last()
+    info = {}
+
     body      = Block.wrap [@body]
     lastJumps = last(body.expressions)?.jumps()
     @returns  = no if lastJumps and lastJumps instanceof Return
@@ -2051,7 +2056,6 @@ exports.For = class For extends While
     guardPart = ''
     defPart   = ''
     idt1      = @tab + TAB
-    info      = {}
     if @range
       forPartFragments = source.compileToFragments merge(o, {index: ivar, name, @step})
       info.initPart = forPartFragments.initPart
@@ -2096,9 +2100,10 @@ exports.For = class For extends While
       body.makeReturn rvar
     if @guard
       if body.expressions.length > 1
-        body.expressions.unshift new If (new Parens @guard).invert(), new Literal "continue"
+        body.expressions.unshift(ifPart = new If (new Parens @guard).invert(), new Literal "continue")
       else
-        body = Block.wrap [new If @guard, body] if @guard
+        body = Block.wrap [ifPart = new If @guard, body] if @guard
+      ifPart.async = @async
     if @pattern
       body.expressions.unshift new Assign @name, new Literal "#{svar}[#{kvar}]"
     defPartFragments = [].concat @makeCode(defPart), @pluckDirectCall(o, body)
