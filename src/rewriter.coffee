@@ -31,6 +31,7 @@ class exports.Rewriter
     @closeOpenIndexes()
     @addImplicitIndentation()
     @tagPostfixConditionals()
+    console.log @tokens
     @addImplicitBracesAndParens()
     @addLocationDataToGeneratedTokens()
     @rewriteAsync()
@@ -391,73 +392,27 @@ class exports.Rewriter
       return 1
 
   rewriteAsync: ->
-    ident = ['IDENTIFIER', ',', '@', '.', '::']
     dest = []
     {tokens} = @
     while token = tokens.shift()
-      if token[0] == 'DEFER' && tokens[0]?[0] != 'CALL_START'
-        line = token[2]
-        dest.push [
-          token,
-          ['CALL_START', '(', line],
-          ['CALL_END', ')', line]
-        ]...
-      else if token[0] == 'IDENTIFIER' && token[1].slice(-1) == '!'
+      if token[0] == 'IDENTIFIER' && token[1].slice(-1) == '!'
         line = token[2]
         token[1] = token[1].slice(0,-1)
-        tag_await = ['AWAIT', 'await', line, spaced:true]
-        tag_defer = ['DEFER', 'defer', line]
+        tag_async = ['ASYNC', 'async', line]
         tag_cs = ['CALL_START', '(', line]
         tag_ce = ['CALL_END', ')', line]
-        tag_comma = [',', ',', line]
-
-        caller = [token]
-        params = []
-
-        # get caller
-        while (t = dest.pop()) && t[0] in ident
-          caller.unshift(t)
-
-        if t && t[0] == '='
-          # found equal
-          while (t = dest.pop()) && t[0] in ident
-            params.unshift(t)
-
-        if t
-          dest.push t
-
-        dest.push tag_await
-
-        # insert caller
-        for t in caller
-          dest.push t
-
-        # search CALL_END
-        num = 0
-        if tokens[0] && tokens[0][0] != 'CALL_START'
+        dest.push token
+        dest.push tag_async
+        if tokens[0]?[0] != 'CALL_START'
           dest.push tag_cs
           dest.push tag_ce
-        else
-          level = 0
-          while token = tokens.shift()
-            dest.push token
-            if token[0] == 'CALL_START'
-              ++level
-            else if token[0] == 'CALL_END'
-              --level
-              if level == 0
-                break
-            else
-              ++num
-        end = dest.pop()
-        if num
-          dest.push tag_comma
-        dest.push tag_defer
+      else if token[0] == 'ASYNC' && tokens[0]?[0] != 'CALL_START'
+        line = token[2]
+        tag_cs = ['CALL_START', '(', line]
+        tag_ce = ['CALL_END', ')', line]
+        dest.push token
         dest.push tag_cs
-        for t in params
-          dest.push t
         dest.push tag_ce
-        dest.push end
       else
         dest.push token
 
@@ -528,13 +483,13 @@ for [left, rite] in BALANCED_PAIRS
 EXPRESSION_CLOSE = ['CATCH', 'WHEN', 'ELSE', 'FINALLY'].concat EXPRESSION_END
 
 # Tokens that, if followed by an `IMPLICIT_CALL`, indicate a function invocation.
-IMPLICIT_FUNC    = ['IDENTIFIER', 'SUPER', ')', 'CALL_END', ']', 'INDEX_END', '@', 'THIS', 'RETURN', 'DEFER']
+IMPLICIT_FUNC    = ['IDENTIFIER', 'SUPER', ')', 'CALL_END', ']', 'INDEX_END', '@', 'THIS', 'RETURN', 'DEFER', 'ASYNC']
 
 # If preceded by an `IMPLICIT_FUNC`, indicates a function invocation.
 IMPLICIT_CALL    = [
   'IDENTIFIER', 'NUMBER', 'STRING', 'JS', 'REGEX', 'NEW', 'PARAM_START', 'CLASS'
   'IF', 'TRY', 'SWITCH', 'THIS', 'BOOL', 'NULL', 'UNDEFINED', 'UNARY', 'SUPER'
-  'THROW', '@', '->', '=>', '[', '(', '{', '--', '++', 'DEFER'
+  'THROW', '@', '->', '=>', '[', '(', '{', '--', '++', 'DEFER', 'ASYNC'
 ]
 
 IMPLICIT_UNSPACED_CALL = ['+', '-']

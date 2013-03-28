@@ -88,6 +88,7 @@ grammar =
   Line: [
     o 'Expression'
     o 'Statement'
+    o 'Async'
   ]
 
   # Pure statements which cannot be expressions.
@@ -97,12 +98,13 @@ grammar =
     o 'STATEMENT',                              -> new Literal $1
   ]
 
-  Defer: [
-    o 'DEFER Arguments',                        -> new Defer $2
+  SimpleAssignableList: [
+	  o 'SimpleAssignable , SimpleAssignable',     -> [$1, $3]
+	  o 'SimpleAssignableList , SimpleAssignable',-> $1.concat $3
   ]
 
-  Await: [
-    o 'AWAIT Expression',                       -> new Await $2
+  Async: [
+    o 'SimpleAssignableList = Expression',           -> new Assign new Arr($1), $3
   ]
 
   # All the different types of expressions in our language. The basic unit of
@@ -111,6 +113,7 @@ grammar =
   # them somewhat circular.
   Expression: [
     o 'Value'
+    o 'AsyncValue'
     o 'Invocation'
     o 'Code'
     o 'Operation'
@@ -122,8 +125,6 @@ grammar =
     o 'Switch'
     o 'Class'
     o 'Throw'
-    o 'Defer'
-    o 'Await'
   ]
 
   # An indented block of expressions. Note that the [Rewriter](rewriter.html)
@@ -268,6 +269,10 @@ grammar =
     o 'This'
   ]
 
+  AsyncValue: [
+    o 'Value ASYNC'
+  ]
+
   # The general group of accessors into an object, by property, by prototype
   # or by array index or slice.
   Accessor: [
@@ -321,6 +326,7 @@ grammar =
   # Ordinary function invocation, or a chained series of calls.
   Invocation: [
     o 'Value OptFuncExist Arguments',           -> new Call $1, $3, $2
+    o 'AsyncValue OptFuncExist Arguments',      -> new AsyncCall $1, $3, $2
     o 'Invocation OptFuncExist Arguments',      -> new Call $1, $3, $2
     o 'SUPER',                                  -> new Call 'super', [new Splat new Literal 'arguments']
     o 'SUPER Arguments',                        -> new Call 'super', $2
@@ -601,7 +607,7 @@ operators = [
   ['nonassoc',  'INDENT', 'OUTDENT']
   ['right',     '=', ':', 'COMPOUND_ASSIGN', 'RETURN', 'THROW', 'EXTENDS']
   ['right',     'FORIN', 'FOROF', 'BY', 'WHEN']
-  ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'AWAIT']
+  ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'ASYNC']
   ['right',     'POST_IF']
 ]
 

@@ -402,6 +402,8 @@ exports.Lexer = class Lexer
     if value is ';'
       @seenFor = no
       tag = 'TERMINATOR'
+    else if value == '!' && prev && !prev.spaced && prev[0] in CALLABLE
+      tag = 'ASYNC'
     else if value in MATH            then tag = 'MATH'
     else if value in COMPARE         then tag = 'COMPARE'
     else if value in COMPOUND_ASSIGN then tag = 'COMPOUND_ASSIGN'
@@ -855,7 +857,7 @@ NOT_SPACED_REGEX = NOT_REGEX.concat ')', '}', 'THIS', 'IDENTIFIER', 'STRING'
 # Tokens which could legitimately be invoked or indexed. An opening
 # parentheses or bracket following these tokens will be recorded as the start
 # of a function invocation or indexing operation.
-CALLABLE  = ['IDENTIFIER', 'STRING', 'REGEX', ')', ']', '}', '?', '::', '@', 'THIS', 'SUPER', 'RETURN', 'DEFER']
+CALLABLE  = ['IDENTIFIER', 'STRING', 'REGEX', ')', ']', '}', '?', '::', '@', 'THIS', 'SUPER', 'RETURN', 'DEFER', 'ASYNC']
 INDEXABLE = CALLABLE.concat 'NUMBER', 'BOOL', 'NULL', 'UNDEFINED'
 
 # Tokens that, when immediately preceding a `WHEN`, indicate that the `WHEN`

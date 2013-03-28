@@ -310,7 +310,7 @@ exports.Block = class Block extends Base
       return this
     while len--
       expr = @expressions[len]
-      if res && expr instanceof Await
+      if res && expr instanceof Async
         value = expr.get_defer()[0].args[0] || new Literal 'arguments[0]'
         ret = value.makeReturn(res)
         ret.generated = true
@@ -372,7 +372,7 @@ exports.Block = class Block extends Base
   asyncCompileNode: (o) ->
     flow = extend {}, o.flows.last()
     for node, index in @expressions
-      if node instanceof Await
+      if node instanceof Async
         node.next_code = @pop_next_code(flow, index)
         break
       else if node.async && node.constructor.name in ['For', 'If', 'While']
@@ -385,11 +385,6 @@ exports.Block = class Block extends Base
           node.flow = extend(flow, {next: next_name})
           @expressions.splice(index, 0, next)
         break
-      ###
-      else if node.async && node instanceof Assign
-        break
-      ###
-
     @
 
   pop_next_code: (flow, idx) ->
@@ -405,6 +400,7 @@ exports.Block = class Block extends Base
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
     @setFlags()
+    puts @
     # TODO: Replace any async to arguments[0] currently only assignment
     @replaceAsyncStatement()
 
@@ -486,7 +482,6 @@ exports.Block = class Block extends Base
         #      ELSE
         #   )
         # replace x = (y )
-
         expr = node.value
         expr.returns = true
         node.value = new Value new Literal 'arguments[0]'
@@ -504,6 +499,7 @@ exports.Block = class Block extends Base
         break
       node.replaceAsyncStatement()
     true
+
   @wrap: (nodes) ->
     return nodes[0] if nodes.length is 1 and nodes[0] instanceof Block
     new Block nodes
@@ -2390,13 +2386,15 @@ exports.If = class If extends Base
     @soak and this
 
 
-exports.Await = class Await extends Base
-  constructor: (@call) ->
+exports.Async = class Async extends Base
+  constructor: (@value, @args, @assign) ->
+    console.log arguments
     @async = true
 
-  children: ['call', 'next']
+  children: ['value', 'args', 'assign']
 
   compileNode: (o) ->
+    return ""
     {call, next_code} = @
     call.omit_return = true
 
@@ -2411,7 +2409,7 @@ exports.Await = class Await extends Base
     o.sharedScope = true
     call.compileNode(o)
 
-  # Await function wont return
+  # Async function wont return
   makeReturn: (res) ->
     @
 
@@ -2420,6 +2418,18 @@ exports.Await = class Await extends Base
       if arg instanceof Defer
         return [arg, pos]
     @error("cannot find defer")
+
+exports.AsyncValue = class AsyncValue extends Base
+	constructor: (@value) ->
+    @async = true
+
+	children: ['value']
+	
+
+exports.AsyncCall = class AsyncCall extends Call
+  constructor: (variable, @args = [], @soak) ->
+	  super
+	  @async = true
 
 exports.Defer = class Defer extends Base
   constructor: (@args) ->
