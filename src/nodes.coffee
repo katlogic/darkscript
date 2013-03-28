@@ -194,7 +194,8 @@ exports.Base = class Base
       # from bottom to top
       from_child: (self, child) ->
         # if any child is async, then the node is async
-        self.async ||= child.async
+        unless self instanceof Code
+          self.async ||= child.async
         true
     }
 
@@ -407,7 +408,6 @@ exports.Block = class Block extends Base
     # TODO: Replace any async to arguments[0] currently only assignment
     @replaceAsyncStatement()
 
-
     o.indent  = if o.bare then '' else TAB
     o.level   = LEVEL_TOP
     @spaced   = yes
@@ -537,6 +537,7 @@ exports.Literal = class Literal extends Base
   compileNode: (o) ->
     flow = o.flows.last()
     if @isStatement() && fn = flow[@value]
+      # replace break, continue
       o.flows.push()
       answer = new Return(
         [new Call(new Literal(fn))]
@@ -1714,6 +1715,7 @@ exports.While = class While extends Base
         body = [].concat @makeCode("\n"), (body.compileToFragments o, LEVEL_TOP), @makeCode("\n#{@tab}")
     info.body = body
     info.results = rvar
+    info.condPart = @condition
     return @asyncCompileNode(o, info) if @async
     answer = [].concat @makeCode(set + @tab + "while ("), @condition.compileToFragments(o, LEVEL_PAREN),
       @makeCode(") {"), body, @makeCode("}")
@@ -1725,9 +1727,22 @@ exports.While = class While extends Base
     o.flows.push @flow if @flow
     flow = o.flows.last()
     answer = [@makeCode @tab]
-    names = {}
-    for name in ['body']
-      names[name] = o.scope.freeVariable(name)
+    names = {
+      body: o.scope.freeVariable('body')
+    }
+
+    # initPart
+    # _fn or _done
+    # _step = =>
+    #   stepPart
+    #   _body(_step)
+    # _body = =>
+    #   varPart (item = items[_i])
+    #   if (condPart)
+    #     body
+    #   else
+    #     _fn or _done
+    # _body(_step)
 
     blocks = new Block([])
 
@@ -1749,18 +1764,41 @@ exports.While = class While extends Base
     if @returns
       blocks.push new Literal "#{info.results} = []"
 
+    if info.initPart
+      # init
+      blocks.push info.initPart
+
+    if info.stepPart
+      step_name = o.scope.freeVariable('step')
+      # step
+      step_fn = new Assign(
+        new Literal(step_name),
+        new Code([], new Block([
+          info.stepPart,
+          ret = new Call(new Literal(names.body))
+        ]))
+      )
+      ret.omit_return = true
+      blocks.push step_fn
+    else
+      step_name = names.body
+
     # body
+    if info.varPart
+      info.body.unshift(info.varPart)
+
     body_fn = new Assign(
       new Literal(names.body),
       code = new Code([], new Block([
         ifPart = new If(
-          @condition,
+          info.condPart,
           info.body
         ).addElse(
           ret = new Call(new Literal(done))
         )
-      ]), 'boundfunc', {next: names.body, return: flow.return, break: done, continue: names.body})
+      ]), 'boundfunc', {next: step_name, return: flow.return, break: done, continue: step_name})
     )
+
     code.async = true
     ret.omit_return = true
     blocks.push body_fn
@@ -2124,9 +2162,9 @@ exports.For = class For extends While
     idt1      = @tab + TAB
     if @range
       forPartFragments = source.compileToFragments merge(o, {index: ivar, name, @step})
-      info.initPart = forPartFragments.initPart
-      info.condPart = forPartFragments.condPart
-      info.stepPart = forPartFragments.stepPart
+      info.initPart = new Literal forPartFragments.initPart
+      info.condPart = new Literal forPartFragments.condPart
+      info.stepPart = new Literal forPartFragments.stepPart
     else
       svar    = @source.compile o, LEVEL_LIST
       if (name or @own) and not IDENTIFIER.test svar
@@ -2153,9 +2191,9 @@ exports.For = class For extends While
         else
           increment = "#{if kvar isnt ivar then "++#{ivar}" else "#{ivar}++"}"
         forPartFragments  = [@makeCode("#{declare}; #{compare}; #{kvarAssign}#{increment}")]
-        info.initPart = declare
-        info.condPart = compare
-        info.stepPart = "#{kvarAssign}#{increment}"
+        info.initPart = new Literal declare
+        info.condPart = new Literal compare
+        info.stepPart = new Literal "#{kvarAssign}#{increment}"
 
     if @returns
       resultPart   = "#{@tab}#{rvar} = [];\n"
@@ -2178,7 +2216,9 @@ exports.For = class For extends While
       forPartFragments   = [@makeCode("#{kvar} in #{svar}")]
       guardPart = "\n#{idt1}if (!#{utility 'hasProp'}.call(#{svar}, #{kvar})) continue;" if @own
     info.body = body
-    info.varPart = varPart
+    if varPart
+      info.varPart = new Literal(varPart.trim().slice(0,-1))
+    info.results = rvar
     return @asyncCompileNode(o, info) if @async
     bodyFragments = body.compileToFragments merge(o, indent: idt1), LEVEL_TOP
     if bodyFragments and (bodyFragments.length > 0)
@@ -2187,78 +2227,6 @@ exports.For = class For extends While
       forPartFragments, @makeCode(") {#{guardPart}#{varPart}"), bodyFragments,
       @makeCode("#{@tab}}#{returnResult or ''}")
 
-  asyncCompileNode: (o, info) ->
-    o.flows.push @flow if @flow
-    flow = o.flows.last()
-    answer = [@makeCode @tab]
-    names = {}
-    for name in ['body', 'step']
-      names[name] = o.scope.freeVariable(name)
-
-    # initPart
-    # _fn or _done
-    # _step = =>
-    #   stepPart
-    #   _body(_step)
-    # _body = =>
-    #   varPart (item = items[_i])
-    #   if (condPart)
-    #     body
-    #   else
-    #     _fn or _done
-    # _body(_step)
-
-    blocks = new Block([])
-
-    # done, flow.next equals _fn in the most of situation
-    if flow.next
-      done = flow.next
-    else
-      done = names.done = o.scope.freeVariable('done')
-      done_fn = new Assign(
-        new Literal(names.done),
-        new Code([], new Block(), 'boundfunc', flow)
-      )
-      blocks.push done_fn
-
-    # init
-    blocks.push new Literal info.initPart
-
-    # step
-    step_fn = new Assign(
-      new Literal(names.step),
-      new Code([], new Block([
-        new Literal(info.stepPart),
-        ret = new Call(new Literal(names.body))
-      ]))
-    )
-    ret.omit_return = true
-    blocks.push step_fn
-
-    # body
-    info.body.unshift(new Literal(info.varPart.trim().slice(0,-1))) if info.varPart
-    body_fn = new Assign(
-      new Literal(names.body),
-      code = new Code([], new Block([
-        ifPart = new If(
-          new Literal(info.condPart),
-          info.body
-        ).addElse(
-          ret = new Call(new Literal(done))
-        )
-      ]), 'boundfunc', {next: names.step, return: flow.return, break: done, continue: names.step})
-    )
-    code.async = true
-    ret.omit_return = true
-    blocks.push body_fn
-
-    # call body
-    call_body = new Call(new Literal(names.body))
-    blocks.push call_body
-
-    answer = blocks.compileNode(o)
-    o.flows.pop() if @flow
-    return answer
 
   pluckDirectCall: (o, body) ->
     defs = []
