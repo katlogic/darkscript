@@ -395,7 +395,14 @@ class exports.Rewriter
     dest = []
     {tokens} = @
     while token = tokens.shift()
-      if token[0] == 'IDENTIFIER' && token[1].slice(-1) == '!'
+      if token[0] == 'DEFER' && tokens[0]?[0] != 'CALL_START'
+        line = token[2]
+        dest.push [
+          token,
+          ['CALL_START', '(', line],
+          ['CALL_END', ')', line]
+        ]...
+      else if token[0] == 'IDENTIFIER' && token[1].slice(-1) == '!'
         line = token[2]
         token[1] = token[1].slice(0,-1)
         tag_await = ['AWAIT', 'await', line, spaced:true]
