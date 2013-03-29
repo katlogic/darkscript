@@ -104,7 +104,7 @@ grammar =
   ]
 
   Async: [
-    o 'SimpleAssignableList = Expression',           -> new Assign new Arr($1), $3
+    o 'SimpleAssignableList = Expression',           -> new Assign new Value(new Arr($1)), $3
   ]
 
   # All the different types of expressions in our language. The basic unit of

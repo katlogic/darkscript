@@ -31,7 +31,6 @@ class exports.Rewriter
     @closeOpenIndexes()
     @addImplicitIndentation()
     @tagPostfixConditionals()
-    console.log @tokens
     @addImplicitBracesAndParens()
     @addLocationDataToGeneratedTokens()
     @rewriteAsync()

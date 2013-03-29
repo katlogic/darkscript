@@ -25,6 +25,11 @@ NO      = -> no
 THIS    = -> this
 NEGATE  = -> @negated = not @negated; this
 
+uid = ->
+  "__async_id_#{uid.id++}"
+
+uid.id = 0
+
 #### CodeFragment
 
 # The various nodes defined below all compile to a collection of **CodeFragment** objects.
@@ -149,6 +154,12 @@ exports.Base = class Base
       tree += " [omit]"
     if @vars && @vars.length
       tree += " [vars #{@vars.join(',')}]"
+    if @bound
+      tree += " [bound]"
+    if @cross
+      tree += " [cross]"
+    if @moved
+      tree += " [moved]"
     tree += '?' if @soak
     @eachChild (node) -> tree += node.toString idt + TAB
     tree
@@ -156,7 +167,7 @@ exports.Base = class Base
   # Passes each child to a function, breaking when the function returns `false`.
   eachChild: (func) ->
     return this unless @children
-    for attr in @children when @[attr]
+    for attr in @children.concat('next') when @[attr]
       for child in flatten [@[attr]]
         return this if func(child) is false
     this
@@ -202,6 +213,26 @@ exports.Base = class Base
   replaceAsyncStatement: ->
     @eachChild (child) ->
       child.replaceAsyncStatement()
+
+  transform: ->
+    @eachChild (child) ->
+      child.transform()
+
+  # 把当前对象转成
+  # __async_id_x = ASYNC_CALL
+  # 并移动动dest底，成
+  # 返回 __async_id_x
+
+  @move: (dest, node) ->
+    id = new Value new Literal uid()
+    assign = new Assign(
+      id,
+      node
+    )
+    assign.moved = true
+    assign.async = node.async
+    dest.push assign
+    id
 
   invert: ->
     new Op '!', this
@@ -372,7 +403,7 @@ exports.Block = class Block extends Base
   asyncCompileNode: (o) ->
     flow = extend {}, o.flows.last()
     for node, index in @expressions
-      if node instanceof Async
+      if node.async
         node.next_code = @pop_next_code(flow, index)
         break
       else if node.async && node.constructor.name in ['For', 'If', 'While']
@@ -400,9 +431,10 @@ exports.Block = class Block extends Base
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
     @setFlags()
-    puts @
+    # puts @
     # TODO: Replace any async to arguments[0] currently only assignment
-    @replaceAsyncStatement()
+    @transform()
+    # puts @
 
     o.indent  = if o.bare then '' else TAB
     o.level   = LEVEL_TOP
@@ -466,6 +498,7 @@ exports.Block = class Block extends Base
   # Wrap up the given nodes as a **Block**, unless it already happens
   # to be one.
   replaceAsyncStatement: ->
+    return
     for node, index in @expressions
       if node.async && node instanceof Assign && !(node.value instanceof Code)
         # replace
@@ -499,6 +532,33 @@ exports.Block = class Block extends Base
         break
       node.replaceAsyncStatement()
     true
+
+  transform: ->
+    dest = []
+    while node = @expressions.shift()
+      if node.async
+        moved = []
+        unless node instanceof AsyncCall
+          node.move(moved)
+        if moved.length
+          @expressions.unshift node
+          @expressions.unshift moved...
+        else
+          next = new Next(@expressions)
+          blocks = node.transform(next)
+          dest.push blocks...
+          @expressions = []
+      else
+        dest.push node
+    @expressions = dest
+    return
+
+  move: (dest) ->
+    for node, idx in @expressions when @async
+      unless node instanceof AsyncCall
+        @expressions[idx] = node.move(dest)
+    @async = false
+    @
 
   @wrap: (nodes) ->
     return nodes[0] if nodes.length is 1 and nodes[0] instanceof Block
@@ -613,6 +673,11 @@ exports.Return = class Return extends Base
     answer.push @makeCode ";"
     return answer
 
+  move: (dest) ->
+    for expr, idx in @expression when expr.async
+      @expression[idx] = expr.move(dest)
+    @async = false
+    @
 
 #### Value
 
@@ -711,6 +776,15 @@ exports.Value = class Value extends Base
           snd.base = ref
         return new If new Existence(fst), snd, soak: on
       no
+
+  move: (dest) ->
+    if @base.move
+      @base = @base.move(dest)
+    for prop, idx in @properties when prop.async and prop.move?
+      @properties[idx] = prop.move(dest)
+      @properties[idx].async = false
+    @async = false
+    @
 
 #### Comment
 
@@ -864,6 +938,11 @@ exports.Call = class Call extends Base
       answer = answer.concat fun
     answer = answer.concat @makeCode(".apply(#{ref}, "), splatArgs, @makeCode(")")
 
+  move: (dest) ->
+    for arg, idx in @args when arg.async
+      arg.move(dest)
+    @async = false
+    @
 
 
 #### Extends
@@ -915,6 +994,11 @@ exports.Index = class Index extends Base
 
   isComplex: ->
     @index.isComplex()
+
+  move: (dest) ->
+    @index = @index.move(dest)
+    @async = false
+    @
 
 #### Range
 
@@ -1091,6 +1175,13 @@ exports.Obj = class Obj extends Base
     for prop in @properties when prop.assigns name then return yes
     no
 
+  move: (dest) ->
+    for obj, idx in @properties when obj.async
+      @properties[idx].value = obj.value.move(dest)
+      @properties[idx].async = false
+    @async = false
+    @
+
 #### Arr
 
 # An array literal.
@@ -1123,6 +1214,12 @@ exports.Arr = class Arr extends Base
   assigns: (name) ->
     for obj in @objects when obj.assigns name then return yes
     no
+
+  move: (dest) ->
+    for obj, idx in @objects when obj.async
+      @objects[idx] = obj.move(dest)
+    @async = false
+    @
 
 #### Class
 
@@ -1437,6 +1534,36 @@ exports.Assign = class Assign extends Base
     [valDef, valRef] = @value.cache o, LEVEL_LIST
     answer = [].concat @makeCode("[].splice.apply(#{name}, [#{fromDecl}, #{to}].concat("), valDef, @makeCode(")), "), valRef
     if o.level > LEVEL_TOP then @wrapInBraces answer else answer
+
+  transform: (next) ->
+    v = @value
+    if v instanceof AsyncCall
+      # convert Assign to AsyncCall
+      call = v
+      @value = new Value new Literal("arguments")
+      unless @variable.base instanceof Arr
+        @variable = new Value new Arr [@variable]
+      @async = false
+      if !@moved
+        assigns = for obj, idx in @variable.base.objects
+          new Assign(
+            obj,
+            new Value(@value.base, [new Index(new Value new Literal idx)])
+          )
+        next.unshift assigns...
+      else
+        params = for obj, idx in @variable.base.objects
+          new Param obj.base
+      call.transform(next, params)
+    else
+      return
+
+  move: (dest) ->
+    if @value instanceof AsyncCall
+      return @
+    @value = @value.move(dest)
+    @async = false
+    return @
 
 #### Code
 
@@ -1957,6 +2084,15 @@ exports.Op = class Op extends Base
   toString: (idt) ->
     super idt, @constructor.name + ' ' + @operator
 
+
+  move: (dest) ->
+    if @first?.async
+      @first = @first.move(dest)
+    if @second?.async
+      @second = @second.move(dest)
+    @async = false
+    return @
+
 #### In
 exports.In = class In extends Base
   constructor: (@object, @array) ->
@@ -2101,6 +2237,12 @@ exports.Parens = class Parens extends Base
     bare = o.level < LEVEL_OP and (expr instanceof Op or expr instanceof Call or
       (expr instanceof For and expr.returns))
     if bare then fragments else @wrapInBraces fragments
+
+  
+  move: (dest) ->
+    @body = @body.move(dest)
+    @async = false
+    @
 
 #### For
 
@@ -2385,10 +2527,20 @@ exports.If = class If extends Base
   unfoldSoak: ->
     @soak and this
 
+  transform: (next) ->
+    @next = next
+    @body?.transform()
+    @elseBody?.transform()
+    [ @ ]
+
+  move: (dest) ->
+    unless @condition?.async
+      return
+    @condition = @condition.move(dest)
+    return @
 
 exports.Async = class Async extends Base
   constructor: (@value, @args, @assign) ->
-    console.log arguments
     @async = true
 
   children: ['value', 'args', 'assign']
@@ -2425,11 +2577,41 @@ exports.AsyncValue = class AsyncValue extends Base
 
 	children: ['value']
 	
-
 exports.AsyncCall = class AsyncCall extends Call
   constructor: (variable, @args = [], @soak) ->
-	  super
-	  @async = true
+    super
+    @next = null
+    @async = true
+
+  children: ['variable', 'args', 'assign']
+
+  transform: (next, params = []) ->
+    # convert AsyncCall to Call
+    code = new Code(params, next.value, 'boundfunc')
+    code.cross = true
+    @args.push code
+    node = new Call(@variable, @args, @soak)
+    node.omit_return = true
+    node.transform()
+    [ node ]
+
+  move: (dest) ->
+    Base.move(dest, @)
+
+exports.Next = class Next extends Base
+  constructor: (@value) ->
+    @value = Block.wrap @value
+
+  children: ['value']
+
+  unshift: ->
+    @value.expressions.unshift arguments...
+
+  push: ->
+    @value.expressions.push arguments...
+
+  pop: ->
+    @value.expressions.pop()
 
 exports.Defer = class Defer extends Base
   constructor: (@args) ->
