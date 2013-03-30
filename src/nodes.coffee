@@ -12,8 +12,9 @@ Error.stackTraceLimit = Infinity
 {compact, flatten, extend, merge, del, starts, ends, last, some,
 addLocationDataFn, locationDataToString, throwSyntaxError} = require './helpers'
 
-puts = (v) -> console.log v.toString()
-p = console.log
+$verbose = false
+puts = (v) -> if $verbose then console.log v.toString()
+p    =     -> if $verbose then console.log arguments...
 
 # Functions required by parser
 exports.extend = extend
@@ -26,7 +27,7 @@ THIS    = -> this
 NEGATE  = -> @negated = not @negated; this
 
 uid = ->
-  "__async_id_#{uid.id++}"
+  "_$$_#{uid.id++}"
 
 uid.id = 0
 
@@ -223,6 +224,19 @@ exports.Base = class Base
   # 并移动动dest底，成
   # 返回 __async_id_x
 
+  ###
+  move: (dest) ->
+    return @ unless children.length
+    for attr in children when v = @[attr]
+      if v.length
+        for arg, idx in v when arg.async
+          @args[idx] = arg.move(dest)
+      else
+        @[attr].move(dest)
+    @async = false
+    @
+  ###
+
   @move: (dest, node) ->
     id = new Value new Literal uid()
     assign = new Assign(
@@ -233,6 +247,29 @@ exports.Base = class Base
     assign.async = node.async
     dest.push assign
     id
+
+  @move_fn: (dest, node, cross = true) ->
+    # create function body
+    code_body = new Block([node.unwrapAll()])
+    code = new Code([Code.autocb], code_body, 'boundfunc')
+    code_body.move()
+    code.cross = cross
+
+    # call the function
+    call = new AsyncCall(new Value code)
+
+    # assign the function result to new id
+    Base.move(dest, call)
+
+  @move_arr: (dest, args) ->
+    return unless args.length
+    len = args.length
+    while --len
+      if args[len].async
+        break
+    for idx in [0..len]
+      args[idx] = Base.move(dest, args[idx])
+    @
 
   invert: ->
     new Op '!', this
@@ -430,11 +467,26 @@ exports.Block = class Block extends Base
   # It would be better not to generate them in the first place, but for now,
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
+    $verbose = o.verbose
+    # Mark all nodes async flags
     @setFlags()
-    # puts @
-    # TODO: Replace any async to arguments[0] currently only assignment
+
+    # move
+    # move any async grammar to
+    #
+    #   Block
+    #     AsyncCall
+    #
+
+
+    puts "move"
+    @move()
+    puts @
+
+    # convert to CoffeeScript with async flags, such as [cross]
     @transform()
-    # puts @
+    puts "Transformed:"
+    puts @
 
     o.indent  = if o.bare then '' else TAB
     o.level   = LEVEL_TOP
@@ -536,27 +588,32 @@ exports.Block = class Block extends Base
   transform: ->
     dest = []
     while node = @expressions.shift()
+      if node.async || node instanceof AsyncCall
+        next = new Next(@expressions)
+        blocks = node.transform(next)
+        dest.push blocks...
+        @expressions = []
+      else
+        node.transform()
+        dest.push node
+    @expressions = dest
+    return true
+
+  move: () ->
+    dest = []
+    while node = @expressions.shift()
       if node.async
         moved = []
-        unless node instanceof AsyncCall
-          node.move(moved)
+        if node instanceof AsyncCall
+          node.move_args(moved)
+        else
+          node = node.move(moved)
         if moved.length
           @expressions.unshift node
           @expressions.unshift moved...
-        else
-          next = new Next(@expressions)
-          blocks = node.transform(next)
-          dest.push blocks...
-          @expressions = []
-      else
-        dest.push node
+          continue
+      dest.push node
     @expressions = dest
-    return
-
-  move: (dest) ->
-    for node, idx in @expressions when @async
-      unless node instanceof AsyncCall
-        @expressions[idx] = node.move(dest)
     @async = false
     @
 
@@ -612,6 +669,9 @@ exports.Literal = class Literal extends Base
 
   toString: ->
     ' "' + @value + '"'
+
+  move: (dest) ->
+    Base.move(dest, @).base
 
 class exports.Undefined extends Base
   isAssignable: NO
@@ -778,11 +838,9 @@ exports.Value = class Value extends Base
       no
 
   move: (dest) ->
-    if @base.move
-      @base = @base.move(dest)
-    for prop, idx in @properties when prop.async and prop.move?
+    @base = @base.move(dest)
+    for prop, idx in @properties when prop.async
       @properties[idx] = prop.move(dest)
-      @properties[idx].async = false
     @async = false
     @
 
@@ -940,7 +998,9 @@ exports.Call = class Call extends Base
 
   move: (dest) ->
     for arg, idx in @args when arg.async
-      arg.move(dest)
+      @args[idx] = arg.move(dest)
+    if @variable.async
+      @variable = @variable.move(dest)
     @async = false
     @
 
@@ -1176,7 +1236,12 @@ exports.Obj = class Obj extends Base
     no
 
   move: (dest) ->
-    for obj, idx in @properties when obj.async
+    len = @properties.length
+    while --len
+      if @properties[len].async
+        break
+    for idx in [0..len]
+      obj = @properties[idx]
       @properties[idx].value = obj.value.move(dest)
       @properties[idx].async = false
     @async = false
@@ -1560,9 +1625,14 @@ exports.Assign = class Assign extends Base
 
   move: (dest) ->
     if @value instanceof AsyncCall
+      @value = @value.move_args(dest)
       return @
-    @value = @value.move(dest)
-    @async = false
+
+    @value = Base.move_fn(dest, @value)
+
+    # skip middle temp value
+    assign = dest.pop()
+    @value = assign.value
     return @
 
 #### Code
@@ -1665,7 +1735,6 @@ exports.Code = class Code extends Base
   # unless `crossScope` is `true`.
   traverseChildren: (crossScope, func) ->
     super(crossScope, func) if crossScope
-
 
 #### Param
 
@@ -2084,14 +2153,51 @@ exports.Op = class Op extends Base
   toString: (idt) ->
     super idt, @constructor.name + ' ' + @operator
 
-
   move: (dest) ->
-    if @first?.async
-      @first = @first.move(dest)
+    if @operator == '||'
+      return @move_or(dest)
+    if @operator == '&&'
+      return @move_and(dest)
+    need_move = ['first']
     if @second?.async
-      @second = @second.move(dest)
+      need_move.push 'second'
+    for m in need_move when @[m]
+      node = @[m]
+      if node instanceof AsyncCall
+        @[m] = node.move(dest)
+      else
+        @[m] = Base.move_fn(dest, node)
     @async = false
     return @
+
+  move_or: (dest) ->
+    # if first
+    #   return first
+    # return second
+
+    body = []
+    first = @first.move(body)
+    body.push new If(
+      first,
+      new Return(first)
+    )
+    second = @second.move(body)
+    body.push new Return([second])
+    Base.move_fn(dest, new Block(body), false)
+
+  move_and: (dest) ->
+    # unless first
+    #   return first
+    # return second
+
+    body = []
+    first = @first.move(body)
+    body.push new If(
+      first.invert(),
+      new Return(first)
+    )
+    body.push new Return([second])
+    Base.move_fn(dest, new Block(body), false)
 
 #### In
 exports.In = class In extends Base
@@ -2213,6 +2319,11 @@ exports.Existence = class Existence extends Base
       code = "#{code} #{if @negated then '==' else '!='} null"
     [@makeCode(if o.level <= LEVEL_COND then code else "(#{code})")]
 
+  move: (dest) ->
+    @expression = @expression.move(dest)
+    @async = false
+    @
+
 #### Parens
 
 # An extra set of parentheses, specified explicitly in the source. At one time
@@ -2238,7 +2349,7 @@ exports.Parens = class Parens extends Base
       (expr instanceof For and expr.returns))
     if bare then fragments else @wrapInBraces fragments
 
-  
+
   move: (dest) ->
     @body = @body.move(dest)
     @async = false
@@ -2535,8 +2646,9 @@ exports.If = class If extends Base
 
   move: (dest) ->
     unless @condition?.async
-      return
+      return @
     @condition = @condition.move(dest)
+    @async = false
     return @
 
 exports.Async = class Async extends Base
@@ -2585,6 +2697,9 @@ exports.AsyncCall = class AsyncCall extends Call
 
   children: ['variable', 'args', 'assign']
 
+  compileNode: (o) ->
+    @error "All AsyncCall should be transformed."
+
   transform: (next, params = []) ->
     # convert AsyncCall to Call
     code = new Code(params, next.value, 'boundfunc')
@@ -2596,7 +2711,14 @@ exports.AsyncCall = class AsyncCall extends Call
     [ node ]
 
   move: (dest) ->
+    Base.move_arr(dest, @args)
     Base.move(dest, @)
+
+  move_args: (dest) ->
+    Base.move_arr(dest, @args)
+    @async = false
+    @
+
 
 exports.Next = class Next extends Base
   constructor: (@value) ->
@@ -2759,3 +2881,9 @@ utility = (name) ->
 multident = (code, tab) ->
   code = code.replace /\n/g, '$&' + tab
   code.replace /\s+$/, ''
+
+# [cross] - Return will be inherited
+#         - Step call autocb if possible
+#
+# Assign [moved] - AsyncCall will put the assigns in params instead of body.
+Code.autocb = new Param(new Literal 'autocb')

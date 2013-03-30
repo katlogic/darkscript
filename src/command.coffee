@@ -48,6 +48,7 @@ SWITCHES = [
   ['-s', '--stdio',           'listen for and compile scripts over stdio']
   ['-t', '--tokens',          'print out the tokens that the lexer/rewriter produce']
   ['-v', '--version',         'display the version number']
+  [      '--verbose',         'display compile log']
   ['-w', '--watch',           'watch scripts for changes and rerun commands']
 ]
 
@@ -334,6 +335,7 @@ compileOptions = (filename, base) ->
     bare: opts.bare
     header: opts.compile
     sourceMap: opts.map
+    verbose: opts.verbose
   }
   if filename
     if base
