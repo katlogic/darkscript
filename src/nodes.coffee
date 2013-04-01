@@ -13,8 +13,15 @@ Error.stackTraceLimit = Infinity
 addLocationDataFn, locationDataToString, throwSyntaxError} = require './helpers'
 
 $verbose = false
-puts = (v) -> if $verbose then console.log v.toString()
-p    =     -> if $verbose then console.log arguments...
+puts = (v) ->
+  unless $verbose
+    return
+  unless v
+    console.log v
+  else if v.constructor?.name != 'Object'
+    console.log v.toString()
+  else
+    console.log arguments...
 
 # Functions required by parser
 exports.extend = extend
@@ -26,8 +33,8 @@ NO      = -> no
 THIS    = -> this
 NEGATE  = -> @negated = not @negated; this
 
-uid = ->
-  "_$$_#{uid.id++}"
+uid = (prefix = '')->
+  "_$#{prefix}$_#{uid.id++}"
 
 uid.id = 0
 
@@ -161,6 +168,8 @@ exports.Base = class Base
       tree += " [cross]"
     if @moved
       tree += " [moved]"
+    if @loop
+      tree += " [loop]"
     tree += '?' if @soak
     @eachChild (node) -> tree += node.toString idt + TAB
     tree
@@ -177,99 +186,6 @@ exports.Base = class Base
     @eachChild (child) ->
       return false if func(child) is false
       child.traverseChildren crossScope, func
-
-  traverse: (funcs) ->
-    {from_parent, from_child} = funcs
-    unless @children
-      return false
-
-    @eachChild (child) =>
-      if from_parent
-        rt = from_parent child, @
-        return false if rt == false
-      child.traverse funcs
-      if from_child
-        rt = from_child @, child
-        return false if rt == false
-      true
-
-
-  setFlags: ->
-    @traverse {
-      # from top to bottom
-      from_parent: (self, parent) ->
-        self.autocb ?= parent.autocb
-        if self instanceof Code
-          self.async = false
-        true
-
-      # from bottom to top
-      from_child: (self, child) ->
-        # if any child is async, then the node is async
-        unless self instanceof Code
-          self.async ||= child.async
-        true
-    }
-
-  replaceAsyncStatement: ->
-    @eachChild (child) ->
-      child.replaceAsyncStatement()
-
-  transform: ->
-    @eachChild (child) ->
-      child.transform()
-
-  # 把当前对象转成
-  # __async_id_x = ASYNC_CALL
-  # 并移动动dest底，成
-  # 返回 __async_id_x
-
-  ###
-  move: (dest) ->
-    return @ unless children.length
-    for attr in children when v = @[attr]
-      if v.length
-        for arg, idx in v when arg.async
-          @args[idx] = arg.move(dest)
-      else
-        @[attr].move(dest)
-    @async = false
-    @
-  ###
-
-  @move: (dest, node) ->
-    id = new Value new Literal uid()
-    assign = new Assign(
-      id,
-      node
-    )
-    assign.moved = true
-    assign.async = node.async
-    dest.push assign
-    id
-
-  @move_fn: (dest, node, cross = true) ->
-    # create function body
-    code_body = new Block([node.unwrapAll()])
-    code = new Code([Code.autocb], code_body, 'boundfunc')
-    code_body.move()
-    code.cross = cross
-
-    # call the function
-    call = new AsyncCall(new Value code)
-
-    # assign the function result to new id
-    Base.move(dest, call)
-
-  @move_arr: (dest, args) ->
-    return unless args.length
-    len = args.length
-    while --len
-      if args[len].async
-        break
-    for idx in [0..len]
-      args[idx] = Base.move(dest, args[idx])
-    @
 
   invert: ->
     new Op '!', this
@@ -323,6 +239,97 @@ exports.Base = class Base
       answer = answer.concat fragments
     answer
 
+  traverse: (funcs) ->
+    {from_parent, from_child} = funcs
+    unless @children
+      return false
+
+    @eachChild (child) =>
+      if from_parent
+        rt = from_parent child, @
+        return false if rt == false
+      child.traverse funcs
+      if from_child
+        rt = from_child @, child
+        return false if rt == false
+      true
+
+  @scopes: []
+  @scope: null
+  setFlags: ->
+    @traverse {
+      # from top to bottom
+      from_parent: (self, parent) ->
+        if self instanceof Block
+          Base.scopes.push self
+          Base.scope = self
+        else if self instanceof Assign && names = self?.variable.get_names()
+          Base.scope.vars.push names...
+        self.autocb ?= parent.autocb
+        if self instanceof Code
+          self.async = false
+        true
+
+      # from bottom to top
+      from_child: (self, child) ->
+        if child instanceof Block
+          Base.scopes.pop()
+          Base.scope = Base.scopes.slice(-1)[0]
+        # if any child is async, then the node is async
+        unless self instanceof Code
+          self.async ||= child.async
+        true
+    }
+
+  transform: ->
+    @eachChild (child) ->
+      child.transform()
+    @
+
+
+  # move returns Synced version or AsyncCall
+  # virtual move(dest) = 0
+
+  # move node to `_id = node` and save to dest
+  # return Value _id
+  @move: (dest, node) ->
+    id = new Value new Literal uid()
+    assign = new Assign(
+      id,
+      node
+    )
+    assign.moved = true
+    assign.async = node.async
+    dest.push assign
+    id
+
+  # move node to `_id = ((autocb) -> node)!` and save to dest
+  # return Value _id
+  @move_ac: (dest, node, cross = true) ->
+    call = AsyncCall.wrap(node, cross)
+
+    # assign the function result to new id
+    Base.move(dest, call)
+
+  # move node to _fn = () -> node and save to dest
+  # return Value _fn
+  @move_code: (dest, node) ->
+    code = new Code([], Block.wrap(node), 'boundfunc')
+    code.body.move()
+    code.cross = true
+    Base.move(dest, code)
+
+  # move all values in the args until the last async
+  # return self
+  @move_arr: (dest, args) ->
+    if n = args?.length
+      while n--
+        if args[n].async
+          for i in [0..n]
+            args[i] = Base.move(dest, args[i])
+        break
+    @
+
 #### Block
 
 # The block is the list of expressions that forms the body of an
@@ -331,7 +338,7 @@ exports.Base = class Base
 exports.Block = class Block extends Base
   constructor: (nodes) ->
     @expressions = compact flatten nodes or []
-    @vars = []
+    @vars = []  # the vars defined under this Block
 
   children: ['expressions']
 
@@ -378,15 +385,9 @@ exports.Block = class Block extends Base
       return this
     while len--
       expr = @expressions[len]
-      if res && expr instanceof Async
-        value = expr.get_defer()[0].args[0] || new Literal 'arguments[0]'
-        ret = value.makeReturn(res)
-        ret.generated = true
-        @expressions.splice(len+1, 0, ret)
-        break
       if expr not instanceof Comment
         @expressions[len] = expr.makeReturn res
-        # TODO return Return when flow.next is empty
+        # TODO remove Return only if flow.next is empty
         # @expressions.splice(len, 1) if expr instanceof Return and not expr.expression.length
         break
     this
@@ -405,6 +406,9 @@ exports.Block = class Block extends Base
     top   = o.level is LEVEL_TOP
     compiledNodes = []
     nodes = []
+
+    for v in @vars
+      o.scope.find(v)
 
     for node, index in @expressions
       node = node.unwrapAll()
@@ -438,21 +442,19 @@ exports.Block = class Block extends Base
     if compiledNodes.length > 1 and o.level >= LEVEL_LIST then @wrapInBraces answer else answer
 
   asyncCompileNode: (o) ->
-    flow = extend {}, o.flows.last()
-    for node, index in @expressions
-      if node.async
-        node.next_code = @pop_next_code(flow, index)
-        break
-      else if node.async && node.constructor.name in ['For', 'If', 'While']
-        next_code = @pop_next_code(flow, index)
+    dest = []
+    while node = @expressions.shift()
+      if node.next && node.constructor.name in ['For', 'If', 'While']
+        next_code = node.next.getCode(o)
         if next_code.body.isEmpty()
         else if next_code.body.expressions[0].can_forward
         else
           next_name = o.scope.freeVariable('fn')
           next = new Assign(new Literal(next_name), next_code)
-          node.flow = extend(flow, {next: next_name})
-          @expressions.splice(index, 0, next)
-        break
+          node.flow = o.flows.clone({next: next_name})
+          dest.push next
+      dest.push node
+    @expressions = dest
     @
 
   pop_next_code: (flow, idx) ->
@@ -467,9 +469,14 @@ exports.Block = class Block extends Base
   # It would be better not to generate them in the first place, but for now,
   # clean up obvious double-parentheses.
   compileRoot: (o) ->
+    uid.id = 0
     $verbose = o.verbose
     # Mark all nodes async flags
+    Base.scopes = [@]
+    Base.scope  = @
     @setFlags()
+    puts "setFlags:"
+    puts @
 
     # move
     # move any async grammar to
@@ -477,10 +484,8 @@ exports.Block = class Block extends Base
     #   Block
     #     AsyncCall
     #
-
-
-    puts "move"
     @move()
+    puts "move:"
     puts @
 
     # convert to CoffeeScript with async flags, such as [cross]
@@ -549,49 +554,14 @@ exports.Block = class Block extends Base
 
   # Wrap up the given nodes as a **Block**, unless it already happens
   # to be one.
-  replaceAsyncStatement: ->
-    return
-    for node, index in @expressions
-      if node.async && node instanceof Assign && !(node.value instanceof Code)
-        # replace
-        #
-        #   xs = ASYNC_LOOP
-        #   ELSE
-        #
-        # to
-        #
-        #   ((autocb) ->
-        #       ASYNC_LOOP
-        #   )( ->
-        #      xs = arguments[0]
-        #      ELSE
-        #   )
-        # replace x = (y )
-        expr = node.value
-        expr.returns = true
-        node.value = new Value new Literal 'arguments[0]'
-        node.async = false
-        next_code = new Code([], new Block(@expressions.splice(index+1)), 'boundfunc')
-        next_code.async = true
-        next_code.body.unshift node
-        call = new Call(
-          code = new Code([new Param new Literal 'autocb'], new Block([expr]), 'boundfunc'),
-          [next_code]
-        )
-        code.async = true
-        @expressions.splice(index, 1, call)
-        call.replaceAsyncStatement()
-        break
-      node.replaceAsyncStatement()
-    true
-
   transform: ->
     dest = []
     while node = @expressions.shift()
       if node.async || node instanceof AsyncCall
-        next = new Next(@expressions)
-        blocks = node.transform(next)
-        dest.push blocks...
+        next = new Block @expressions
+        next.transform()
+        block = node.transform(next)
+        dest.push block
         @expressions = []
       else
         node.transform()
@@ -606,13 +576,25 @@ exports.Block = class Block extends Base
         moved = []
         if node instanceof AsyncCall
           node.move_args(moved)
+        else if node instanceof If && @expressions.length
+          node = node.move(moved, @expressions)
+          @expressions = []
+        else if node instanceof For && @expressions.length
+          node.no_results = true
+          node = AsyncCall.wrap(node)
         else
           node = node.move(moved)
         if moved.length
-          @expressions.unshift node
+          @expressions.unshift node if node
           @expressions.unshift moved...
           continue
-      dest.push node
+      else if node instanceof Assign && node.value instanceof Code
+        # Assign Code won't move, but Code block need to be moved.
+        node.value.body.move()
+      else if node instanceof Code
+        node.body.move()
+      if node
+        dest.push node
     @expressions = dest
     @async = false
     @
@@ -671,7 +653,7 @@ exports.Literal = class Literal extends Base
     ' "' + @value + '"'
 
   move: (dest) ->
-    Base.move(dest, @).base
+    @
 
 class exports.Undefined extends Base
   isAssignable: NO
@@ -734,8 +716,8 @@ exports.Return = class Return extends Base
     return answer
 
   move: (dest) ->
-    for expr, idx in @expression when expr.async
-      @expression[idx] = expr.move(dest)
+    return @ unless @async
+    Base.move_arr(dest, @expression)
     @async = false
     @
 
@@ -838,11 +820,24 @@ exports.Value = class Value extends Base
       no
 
   move: (dest) ->
-    @base = @base.move(dest)
-    for prop, idx in @properties when prop.async
-      @properties[idx] = prop.move(dest)
+    return @ unless @async
+    if @properties.length && @base.async
+      @base = Base.move_ac(dest, @base)
+    else
+      @base = @base.move(dest)
+    Base.move_arr(dest, @properties)
     @async = false
     @
+
+  get_names: (names = []) ->
+    if @base instanceof Arr
+      for v in @base.objects
+        v.get_names?(names)
+    else if @base.hasProperties?()
+      return null
+    else if @base.value?
+      names.push(@base.value)
+    names
 
 #### Comment
 
@@ -997,10 +992,9 @@ exports.Call = class Call extends Base
     answer = answer.concat @makeCode(".apply(#{ref}, "), splatArgs, @makeCode(")")
 
   move: (dest) ->
-    for arg, idx in @args when arg.async
-      @args[idx] = arg.move(dest)
-    if @variable.async
-      @variable = @variable.move(dest)
+    return @ unless @async
+    @variable = @variable.move(dest)
+    Base.move_arr(dest, @args)
     @async = false
     @
 
@@ -1056,6 +1050,7 @@ exports.Index = class Index extends Base
     @index.isComplex()
 
   move: (dest) ->
+    return @ unless @async
     @index = @index.move(dest)
     @async = false
     @
@@ -1072,8 +1067,6 @@ exports.Range = class Range extends Base
   constructor: (@from, @to, tag) ->
     @exclusive = tag is 'exclusive'
     @equals = if @exclusive then '' else '='
-
-
 
   # Compiles the range's source variables -- where it starts and where it ends.
   # But only if they need to be cached to avoid double evaluation.
@@ -1158,6 +1151,15 @@ exports.Range = class Range extends Base
     args   = ', arguments' if hasArgs(@from) or hasArgs(@to)
     [@makeCode "(function() {#{pre}\n#{idt}for (#{body})#{post}}).apply(this#{args ? ''})"]
 
+  move: (dest) ->
+    @error "Range doesn't support async."
+    if @to.async
+      @from = @from.move(dest)
+      @to = Base.move(dest, @to)
+    else if @from.async
+      @from = @from.move(dest)
+    @async = false
+    @
 #### Slice
 
 # An array slice literal. Unlike JavaScript's `Array#slice`, the second parameter
@@ -1236,14 +1238,15 @@ exports.Obj = class Obj extends Base
     no
 
   move: (dest) ->
-    len = @properties.length
-    while --len
-      if @properties[len].async
+    return @ unless @async
+    n = @properties.length
+    while n--
+      if @properties[n].async
+        for i in [0..n]
+          obj = @properties[i]
+          @properties[i].value = obj.value.move(dest)
+          @properties[i].async = false
         break
-    for idx in [0..len]
-      obj = @properties[idx]
-      @properties[idx].value = obj.value.move(dest)
-      @properties[idx].async = false
     @async = false
     @
 
@@ -1281,8 +1284,8 @@ exports.Arr = class Arr extends Base
     no
 
   move: (dest) ->
-    for obj, idx in @objects when obj.async
-      @objects[idx] = obj.move(dest)
+    return unless @async
+    Base.move_arr(dest, @objects)
     @async = false
     @
 
@@ -1600,40 +1603,48 @@ exports.Assign = class Assign extends Base
     answer = [].concat @makeCode("[].splice.apply(#{name}, [#{fromDecl}, #{to}].concat("), valDef, @makeCode(")), "), valRef
     if o.level > LEVEL_TOP then @wrapInBraces answer else answer
 
-  transform: (next) ->
-    v = @value
-    if v instanceof AsyncCall
-      # convert Assign to AsyncCall
-      call = v
-      @value = new Value new Literal("arguments")
-      unless @variable.base instanceof Arr
-        @variable = new Value new Arr [@variable]
-      @async = false
-      if !@moved
-        assigns = for obj, idx in @variable.base.objects
-          new Assign(
-            obj,
-            new Value(@value.base, [new Index(new Value new Literal idx)])
-          )
-        next.unshift assigns...
-      else
-        params = for obj, idx in @variable.base.objects
-          new Param obj.base
-      call.transform(next, params)
-    else
-      return
-
   move: (dest) ->
+    if @async && @context
+      if @variable.async
+        @error "cannot apply #{@context} to async variable"
+      switch @context
+        when '||='
+          op = '||'
+        when '&&='
+          op = '&&'
+        when '?='
+          op = '?'
+        else
+          @error "unknown operator #{@context}"
+      node = new Op(
+        op,
+        @variable,
+        as = new Assign(
+          @variable,
+          @value
+        )
+      )
+      node.async = as.async = true
+      dest.push node
+      return null
+
     if @value instanceof AsyncCall
-      @value = @value.move_args(dest)
-      return @
+      call = @value
+      if @variable.base instanceof Arr
+        @value = new Value new Literal 'arguments'
+      else
+        @value = new Value new Literal 'arguments[0]'
+      @async = false
+      call.assign = @
+      dest.push call
+      return null
 
-    @value = Base.move_fn(dest, @value)
-
+    @value = Base.move_ac(dest, @value)
     # skip middle temp value
     assign = dest.pop()
     @value = assign.value
-    return @
+    dest.push @
+    return null
 
 #### Code
 
@@ -1670,7 +1681,13 @@ exports.Code = class Code extends Base
     o.scope         = new Scope o.scope, @body, this
     o.scope.shared  = del(o, 'sharedScope')
     o.indent        += TAB
-    o.flows.push(@flow)
+    if @cross
+      flow = o.flows.clone()
+    else
+      flow = {}
+    if @flow
+      flow = extend(flow, @flow)
+    o.flows.push(flow)
     delete o.bare
     delete o.isExistentialEquals
     params = []
@@ -2158,6 +2175,9 @@ exports.Op = class Op extends Base
       return @move_or(dest)
     if @operator == '&&'
       return @move_and(dest)
+    if @operator == '?'
+      return @move_exist(dest)
+
     need_move = ['first']
     if @second?.async
       need_move.push 'second'
@@ -2166,38 +2186,49 @@ exports.Op = class Op extends Base
       if node instanceof AsyncCall
         @[m] = node.move(dest)
       else
-        @[m] = Base.move_fn(dest, node)
+        @[m] = Base.move_ac(dest, node)
     @async = false
     return @
 
-  move_or: (dest) ->
-    # if first
+  move_cond: (dest, fn) ->
+    # if fn(first)
     #   return first
     # return second
 
     body = []
     first = @first.move(body)
-    body.push new If(
-      first,
-      new Return(first)
-    )
-    second = @second.move(body)
-    body.push new Return([second])
-    Base.move_fn(dest, new Block(body), false)
+    unless first.base instanceof Literal
+      # set eg: first[0][0] to new first
+      first = Base.move(body, first)
 
-  move_and: (dest) ->
-    # unless first
-    #   return first
-    # return second
+    elseBody = []
+    second = @second.move(elseBody)
+    elseBody.push second
+    elseBodyBlock = new Block(elseBody)
+    elseBodyBlock.move()
 
-    body = []
-    first = @first.move(body)
     body.push new If(
-      first.invert(),
-      new Return(first)
-    )
-    body.push new Return([second])
-    Base.move_fn(dest, new Block(body), false)
+      fn(first),
+      first
+    ).addElse(elseBodyBlock)
+    body_block = new Block(body)
+    body_block.move()
+    Base.move_ac(dest, body_block, false)
+
+  move_or: (dest, fn) ->
+    # first || second
+    @move_cond dest, (first) ->
+      first
+
+  move_and: (dest, fn) ->
+    # first && second
+    @move_cond dest, (first) ->
+      first.invert()
+
+  move_exist: (dest) ->
+    # first ? second
+    @move_cond dest, (first) ->
+      new Existence first
 
 #### In
 exports.In = class In extends Base
@@ -2237,6 +2268,10 @@ exports.In = class In extends Base
   toString: (idt) ->
     super idt, @constructor.name + if @negated then '!' else ''
 
+  move: (dest) ->
+    @object = @object.move(dest) if @object?.async
+    @array = @array.move(dest)   if @array?.async
+    @
 #### Try
 
 # A classic *try/catch/finally* block.
@@ -2391,6 +2426,8 @@ exports.For = class For extends While
     body      = Block.wrap [@body]
     lastJumps = last(body.expressions)?.jumps()
     @returns  = no if lastJumps and lastJumps instanceof Return
+    if @no_results
+      @returns = false
     source    = if @range then @source.base else @source
     scope     = o.scope
     name      = @name  and (@name.compile o, LEVEL_LIST)
@@ -2451,12 +2488,16 @@ exports.For = class For extends While
       else
         returnResult = "\n#{@tab}return #{rvar};"
       body.makeReturn rvar
+
     if @guard
       if body.expressions.length > 1
         body.expressions.unshift(ifPart = new If (new Parens @guard).invert(), new Literal "continue")
       else
         body = Block.wrap [ifPart = new If @guard, body] if @guard
-      ifPart.async = @async
+      if @async
+        ifPart.async = @async
+        ifPart.elseBody ?= new Block()
+        ifPart.elseBody.async = true
     if @pattern
       body.expressions.unshift new Assign @name, new Literal "#{svar}[#{kvar}]"
     defPartFragments = [].concat @makeCode(defPart), @pluckDirectCall(o, body)
@@ -2496,6 +2537,12 @@ exports.For = class For extends While
       body.expressions[idx] = new Call base, expr.args
       defs = defs.concat @makeCode(@tab), (new Assign(ref, fn).compileToFragments(o, LEVEL_TOP)), @makeCode(';\n')
     defs
+
+  move: (dest) ->
+    @step  = @step.move(dest) if @step?.async
+    @guard = @guard.move(dest) if @guard?.async
+    @source = @source.move(dest) if @source?.async
+    @
 
 #### Switch
 
@@ -2576,24 +2623,10 @@ exports.If = class If extends Base
 
   compileNode: (o) ->
     o.flows.push @flow if @flow
-    @asyncCompileNode(o) if @async
+    @asyncCompileNode(o)
     answer = if @isStatement o then @compileStatement o else @compileExpression o
     o.flows.pop() if @flow
     answer
-
-  asyncCompileNode: (o) ->
-    flow = o.flows.last()
-
-    if flow.next && !@elseBody
-      @elseBody ?= new Block()
-
-    for body in [@body, @elseBody] when body instanceof Block
-      ret = new Return()
-      ret.generated = true
-      ret.can_forward = true
-      body.push ret
-
-    @
 
   makeReturn: (res) ->
     @elseBody  or= Block.wrap [new Literal 'void 0'] if res
@@ -2638,57 +2671,47 @@ exports.If = class If extends Base
   unfoldSoak: ->
     @soak and this
 
-  transform: (next) ->
-    @next = next
-    @body?.transform()
-    @elseBody?.transform()
-    [ @ ]
+  asyncCompileNode: (o) ->
+    flow = o.flows.last()
 
-  move: (dest) ->
-    unless @condition?.async
-      return @
-    @condition = @condition.move(dest)
-    @async = false
-    return @
+    if flow.next && !@elseBody
+      @elseBody ?= new Block()
 
-exports.Async = class Async extends Base
-  constructor: (@value, @args, @assign) ->
-    @async = true
+    ###
+    for body in [@body, @elseBody] when body instanceof Block && !body.async
+      ret = new Return()
+      ret.generated = true
+      ret.can_forward = true
+      body.push ret
+    ###
 
-  children: ['value', 'args', 'assign']
-
-  compileNode: (o) ->
-    return ""
-    {call, next_code} = @
-    call.omit_return = true
-
-    # unshift assignments
-    [def, pos] = @get_defer()
-    assigns = def.get_assigns().reverse()
-    for assign in assigns
-      next_code.body.unshift(assign)
-
-    # replace defer to callback
-    call.args.splice(pos, 1, next_code)
-    o.sharedScope = true
-    call.compileNode(o)
-
-  # Async function wont return
-  makeReturn: (res) ->
     @
 
-  get_defer: ->
-    for arg, pos in @call.args
-      if arg instanceof Defer
-        return [arg, pos]
-    @error("cannot find defer")
+  move: (dest, next_body = null) ->
+    return unless @async
+    if @autocb || next_body
+      @elseBody ?= new Block()
 
-exports.AsyncValue = class AsyncValue extends Base
-	constructor: (@value) ->
-    @async = true
+    if next_body
+      if next_body[0].can_forward
+        next = next_body[0].variable
+      else
+        next = Base.move_code dest, next_body
 
-	children: ['value']
-	
+      @flow = {next: next}
+      for body in [@body, @elseBody]
+        call = new Call(next)
+        call.can_forward = true
+        call.omit_return = true
+        body.push call
+
+    # unless @condition?.async return @
+    @condition = @condition.move(dest) if @condition?.async
+    @body.move()
+    @async = false
+    @
+
+
 exports.AsyncCall = class AsyncCall extends Call
   constructor: (variable, @args = [], @soak) ->
     super
@@ -2700,15 +2723,27 @@ exports.AsyncCall = class AsyncCall extends Call
   compileNode: (o) ->
     @error "All AsyncCall should be transformed."
 
-  transform: (next, params = []) ->
+  transform: (next_body) ->
     # convert AsyncCall to Call
-    code = new Code(params, next.value, 'boundfunc')
+    params = []
+    if @assign
+      if @assign.moved
+        params = [new Param @assign.variable.base]
+      else
+        next_body.unshift(@assign)
+    else if next_body.isEmpty()
+      id = new Literal uid()
+      params = [new Param id]
+      next_body.unshift(id)
+    # if next_body.isEmpty()
+    #   next_body.push new Literal('arguments[0]')
+    code = new Code(params, next_body, 'boundfunc')
     code.cross = true
     @args.push code
     node = new Call(@variable, @args, @soak)
     node.omit_return = true
     node.transform()
-    [ node ]
+    node
 
   move: (dest) ->
     Base.move_arr(dest, @args)
@@ -2719,35 +2754,21 @@ exports.AsyncCall = class AsyncCall extends Call
     @async = false
     @
 
+  # wrap node to `((autocb) -> node)!`
+  # returns the the call
+  @wrap: (node, cross = true) ->
+    # create function body
+    code_body = new Block([node.unwrapAll()])
+    next = uid('cb')
+    code = new Code([new Param new Literal next], code_body, 'boundfunc')
+    code.autocb = true
+    code.flow = {next: next}
+    code_body.move()
+    code.cross = cross
 
-exports.Next = class Next extends Base
-  constructor: (@value) ->
-    @value = Block.wrap @value
+    # call the function
+    call = new AsyncCall(new Value code)
 
-  children: ['value']
-
-  unshift: ->
-    @value.expressions.unshift arguments...
-
-  push: ->
-    @value.expressions.push arguments...
-
-  pop: ->
-    @value.expressions.pop()
-
-exports.Defer = class Defer extends Base
-  constructor: (@args) ->
-
-  children: ['args']
-
-  get_vars: ->
-    for arg in @args when v = arg.unwrap().value
-        v
-
-  get_assigns: ->
-    for arg, idx in @args
-      value = new Value new Literal("arguments[#{idx}]")
-      new Assign(arg, value)
 
 class Flows
   constructor: ->
@@ -2760,11 +2781,15 @@ class Flows
   pop: ->
     @flows.pop()
 
-  clone: ->
-    @push extend({}, last(@flows))
+  clone: (override = null) ->
+    flow = extend({}, last(@flows))
+    if override
+      extend(flow, override)
+    flow
 
   last: ->
     last(@flows)
+
 
 # Faux-Nodes
 # ----------
@@ -2882,8 +2907,6 @@ multident = (code, tab) ->
   code = code.replace /\n/g, '$&' + tab
   code.replace /\s+$/, ''
 
-# [cross] - Return will be inherited
-#         - Step call autocb if possible
-#
-# Assign [moved] - AsyncCall will put the assigns in params instead of body.
+# ToffeeScript extended
+# =====================
 Code.autocb = new Param(new Literal 'autocb')
