@@ -2561,6 +2561,40 @@ exports.For = class For extends While
   move: (dest, results) ->
     return @ if @moved
     @moved = true
+
+    if @object
+      # @name = v
+      # @index = k
+      # for own k, v of a
+      # to
+      # keys = for own k of a
+      # for k in keys
+      #   v = a[k]
+      key_name = uid()
+      orig_source = @source
+      unless @source.base instanceof Literal
+        orig_source = Base.move(dest, orig_source)
+      orig_name = @name
+      orig_index = @index
+      get_keys = new For(
+        new Block([
+          new Value new Literal(key_name)
+        ]),
+        {
+          source: orig_source
+          name: new Literal key_name
+          @guard, @step, @own, @object
+        }
+      )
+      keys = Base.move(dest, get_keys)
+      @own = @object = @guard = @index = @step = null
+      @source = keys
+      @name = orig_index
+      @body.unshift(new Assign(
+        orig_name, new Value(orig_source, [
+          new Index(orig_index)
+        ])
+      ))
     @step  = @step.move(dest) if @step?.async
     # guard is part of body, should be in the body
     @error("Guard cannot be async") if @guard?.async
@@ -2571,7 +2605,6 @@ exports.For = class For extends While
     else
       @results_id = false
     @body.move()
-    @moved = true
     @
 
 #### Switch

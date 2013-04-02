@@ -147,3 +147,47 @@ describe 'while', ->
 				return null;
 			});
 		"""
+
+	it 'for own of', ->
+		code_eq """
+			for own k, v of vs
+				x!
+			null
+		""", """
+			var _$$_0, _$$_1,
+				__hasProp = {}.hasOwnProperty,
+			_this = this;
+
+			_$$_1 = (function() {
+				var _results;
+				_results = [];
+				for (_$$_0 in vs) {
+					if (!__hasProp.call(vs, _$$_0)) continue;
+						_results.push(_$$_0);
+				}
+				return _results;
+			})();
+
+			(function(_$cb$_2) {
+				var k, v, _body, _i, _len, _step;
+				_i = 0, _len = _$$_1.length;
+				_step = function() {
+					_i++;
+					_body();
+				};
+				_body = function() {
+					if (_i < _len) {
+						k = _$$_1[_i];
+						v = vs[k];
+						x(function(_$$_3) {
+							_step(_$$_3);
+						});
+					} else {
+						_$cb$_2();
+					}
+				};
+				_body();
+			})(function() {
+				return null;
+			});
+		"""
