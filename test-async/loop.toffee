@@ -1,0 +1,149 @@
+{p, code_eq} = require './helper'
+
+describe 'for', ->
+	it 'simple', ->
+		code_eq """
+			for i in [1..3]
+				x!
+			null
+		""", """
+			(function(cb) {
+				var i, _body, _i, _step;
+				i = _i = 1;
+				_step = function() {
+					i = ++_i;
+					_body();
+				}
+				_body = function() {
+					if (_i <= 3) {
+						x(function(v) {
+							_step(v);
+						});
+					} else {
+						cb();
+					}
+				}
+				_body();
+			})(function() {
+				return null;
+			});
+		"""
+
+	it 'returns', ->
+		code_eq """
+			xs = for i in [1..3]
+				x!
+			null
+		""", """
+			var xs;
+			(function(cb) {
+				var i, res, _body, _done, _i, _step;
+				res = []
+				i = _i = 1;
+				_step = function() {
+					i = ++_i;
+					_body();
+				}
+				_body = function() {
+					if (_i <= 3) {
+						x(function(v) {
+							_step(res.push(v));
+						});
+					} else {
+						_done();
+					}
+				}
+				_done = function() {
+					cb(res);
+				}
+				_body();
+			})(function() {
+				xs = arguments[0]
+				return null;
+			});
+		"""
+
+	it 'guard', ->
+		code_eq """
+			for i in [1..3] when i > 10
+				x!
+			null
+		""", """
+			(function(cb) {
+				var i, _body, _i, _step;
+				i = _i = 1;
+				_step = function() {
+					i = ++_i;
+					_body();
+				}
+				_body = function() {
+					if (_i <= 3) {
+						if (i > 10) {
+							x(function(v) {
+								_step(v);
+							});
+						} else {
+							_step();
+						}
+					} else {
+						cb()
+					}
+				}
+				_body();
+			})(function() {
+				return null;
+			});
+		"""
+
+describe 'while', ->
+	it 'simple', ->
+		code_eq """
+			while true
+				x!
+			null
+		""", """
+			(function(cb) {
+				var _body;
+				_body = function() {
+					if (true) {
+						x(function(v) {
+							_body(v);
+						});
+					} else {
+						cb();
+					}
+				}
+				_body();
+			})(function() {
+				return null;
+			});
+		"""
+
+	it 'returns', ->
+		code_eq """
+			xs = while true
+				x!
+			null
+		""", """
+			var xs;
+			(function(cb) {
+				var res, _body, _done;
+				res = []
+				_body = function() {
+					if (true) {
+						x(function(v) {
+							_body(res.push(v));
+						});
+					} else {
+						cb();
+					}
+				}
+				_done = function() {
+					cb(res);
+				}
+				_body();
+			})(function() {
+				xs = arguments[0]
+				return null;
+			});
+		"""

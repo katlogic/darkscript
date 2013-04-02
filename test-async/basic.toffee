@@ -1,0 +1,26 @@
+{p, code_eq} = require './helper'
+describe 'basic', ->
+	it 'simple', ->
+		code_eq "x!", """
+			var _this = this;
+			x(function(v){return v})
+		"""
+
+	it 'with returns', ->
+		code_eq "y = x!", """
+			var y
+			x(function() {
+				return y = arguments[0]
+			})
+		"""
+
+	it 'full feature', ->
+		code_eq "x, y = a! b, c", """
+			var x, y
+			a(b, c, function() {
+				x = arguments[0]
+				y = arguments[1]
+				return arguments
+			})
+		"""
+

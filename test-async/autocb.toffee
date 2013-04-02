@@ -1,0 +1,44 @@
+{p, code_eq} = require './helper'
+
+describe 'autocb', ->
+	it 'simple', ->
+		code_eq "x = (autocb)->", """
+			var x
+			x = function(autocb) {
+				autocb();
+			}
+		"""
+
+	it 'simple 2', ->
+		code_eq """
+			x = (autocb) ->
+				y!
+		""", """
+			var x
+			x = function(autocb){
+				var _this = this
+				y(function(v) {
+					autocb(v);
+				});
+			}
+		"""
+	it 'simple 3', ->
+		code_eq """
+			x = (autocb) ->
+				x = y!
+		""", """
+			var x
+			x = function(autocb){
+				var _this = this
+				y(function() {
+					autocb(x = arguments[0]);
+				});
+			}
+		"""
+	it 'empty return', ->
+		code_eq "x = (autocb)-> return", """
+			var x
+			x = function(autocb) {
+				return autocb();
+			}
+		"""

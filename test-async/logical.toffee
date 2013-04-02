@@ -1,0 +1,157 @@
+{p, code_eq} = require './helper'
+
+describe 'logical', ->
+	it '||', ->
+		code_eq """
+			a! || b!
+		""", """
+			(function(_$cb$_2) {
+				a(function(_$$_0) {
+					if (_$$_0) {
+						_$cb$_2(_$$_0);
+					} else {
+						b(function(_$$_1) {
+							_$cb$_2(_$$_1);
+						});
+					}
+				});
+			})(function(_$$_3) {
+				return _$$_3;
+			});
+		"""
+
+	it '&&', ->
+		code_eq """
+			a! && b!
+		""", """
+			(function(_$cb$_2) {
+				a(function(_$$_0) {
+					if (!_$$_0) {
+						_$cb$_2(_$$_0);
+					} else {
+						b(function(_$$_1) {
+							_$cb$_2(_$$_1);
+						});
+					}
+				});
+			})(function(_$$_3) {
+				return _$$_3;
+			});
+		"""
+
+	it '?', ->
+		code_eq """
+			a! ? b!
+		""", """
+			(function(_$cb$_2) {
+				a(function(_$$_0) {
+					if (_$$_0 != null) {
+						_$cb$_2(_$$_0);
+					} else {
+						b(function(_$$_1) {
+							_$cb$_2(_$$_1);
+						});
+					}
+				});
+			})(function(_$$_3) {
+				return _$$_3;
+			});
+		"""
+
+	it '&&=', ->
+		code_eq """
+			a &&= b!
+		""", """
+			var a;
+			(function(_$cb$_0) {
+				if (!a) {
+					_$cb$_0(a);
+				} else {
+					b(function() {
+						_$cb$_0(a = arguments[0]);
+					});
+				}
+			})(function(_$$_1) {
+				return _$$_1;
+			});
+		"""
+
+	it '||=', ->
+		code_eq """
+			a &&= b!
+		""", """
+			var a;
+			(function(_$cb$_0) {
+				if (!a) {
+					_$cb$_0(a);
+				} else {
+					b(function() {
+						_$cb$_0(a = arguments[0]);
+					});
+				}
+			})(function(_$$_1) {
+				return _$$_1;
+			});
+		"""
+
+	it '?=', ->
+		code_eq """
+			a ?= b!
+		""", """
+			var a;
+			(function(_$cb$_0) {
+				if (a != null) {
+					_$cb$_0(a);
+				} else {
+					b(function() {
+						_$cb$_0(a = arguments[0]);
+					});
+				}
+			})(function(_$$_1) {
+				return _$$_1;
+			});
+		"""
+
+	it 'complex', ->
+		code_eq """
+			x = a! && b! || c! && d!
+		""", """
+			var x;
+			(function(_$cb$_0) {
+				(function(_$cb$_9) {
+					(function(_$cb$_6) {
+						(function(_$cb$_3) {
+							a(function(_$$_1) {
+								if (!_$$_1) {
+									_$cb$_3(_$$_1);
+								} else {
+									b(function(_$$_2) {
+										_$cb$_3(_$$_2);
+									});
+								}
+							});
+						})(function(_$$_4) {
+							if (_$$_4) {
+								_$cb$_6(_$$_4);
+							} else {
+								c(function(_$$_5) {
+									_$cb$_6(_$$_5);
+								});
+							}
+						});
+					})(function(_$$_7) {
+						if (!_$$_7) {
+							_$cb$_9(_$$_7);
+						} else {
+							d(function(_$$_8) {
+								_$cb$_9(_$$_8);
+							});
+						}
+					});
+				})(function(_$$_10) {
+					_$cb$_0(_$$_10);
+				});
+			})(function() {
+				return x = arguments[0];
+			});
+		"""

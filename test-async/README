@@ -1,0 +1,6 @@
+Requires Modules
+
+  mocha     
+  uglify-js 2.0
+
+npm install mocha uglify-js

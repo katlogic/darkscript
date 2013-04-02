@@ -1,0 +1,38 @@
+assert = require 'assert'
+{compile} = require '../lib/coffee-script'
+{minify} = require 'uglify-js'
+p = console.log
+
+strip = (code) ->
+	res = minify(code, {
+		fromString: true
+		output: {
+			beautify: true
+		}
+	})
+	res.code
+
+code_eq = (src_orig, dest_orig) ->
+	try
+		src  = strip src_gened = compile(src_orig)
+		dest = "(function(){#{dest_orig}}).call(this)"
+		dest = strip dest
+		assert.equal src, dest
+
+	catch e
+		console.log "<<<<"
+		console.log src_orig
+		console.log '----'
+		console.log src_gened
+		console.log "----"
+		console.log dest_orig
+		console.log ">>>>"
+		throw e
+
+
+run = (code, cb) ->
+	console.log 'a'
+	console.log (compile("(autocb) -> " + code, {bare: true}))
+module.exports = {
+	code_eq, p, compile, run
+}
