@@ -1,8 +1,8 @@
 {
-  "name":         "coffee-script",
+  "name":         "toffee-script",
   "description":  "Unfancy JavaScript",
-  "keywords":     ["javascript", "language", "coffeescript", "compiler"],
-  "author":       "Jeremy Ashkenas",
+  "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript"],
+  "author":       "Miao Jiang",
   "version":      "1.6.2",
   "licenses":     [{
     "type":       "MIT",
@@ -16,17 +16,17 @@
   },
   "main" : "./lib/coffee-script/coffee-script",
   "bin":          {
-    "coffee":     "./bin/coffee",
-    "cake":       "./bin/cake"
+    "toffee":     "./bin/coffee",
+    "tcons":      "./bin/cake"
   },
   "scripts": {
     "test": "node ./bin/cake test"
   },
-  "homepage":     "http://coffeescript.org",
-  "bugs":         "https://github.com/jashkenas/coffee-script/issues",
+  "homepage":     "https://github.com/jiangmiao/toffee-script",
+  "bugs":         "https://github.com/jiangmiao/toffee-script/issues",
   "repository":   {
     "type": "git",
-    "url": "git://github.com/jashkenas/coffee-script.git"
+    "url": "git://github.com/jiangmiao/toffee-script.git"
   },
   "devDependencies": {
     "uglify-js":  "~2.2",

@@ -26,7 +26,7 @@ hidden = (file) -> /^\.|~$/.test file
 
 # The help banner that is printed when `coffee` is called without arguments.
 BANNER = '''
-  Usage: coffee [options] path/to/script.coffee -- [args]
+  Usage: toffee [options] path/to/script.coffee -- [args]
 
   If called without options, `coffee` will run your script.
 '''
@@ -373,4 +373,4 @@ usage = ->
 
 # Print the `--version` message and exit.
 version = ->
-  printLine "CoffeeScript version #{CoffeeScript.VERSION}"
+  printLine "ToffeeScript version #{CoffeeScript.VERSION}"
