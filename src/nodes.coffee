@@ -576,9 +576,13 @@ exports.Block = class Block extends Base
         else if node instanceof If && @expressions.length
           node = node.move(moved, @expressions)
           @expressions = []
-        else if (node instanceof For || node instanceof While) && @expressions.length
-          node = node.move(dest, true)
-          node = AsyncCall.wrap(node)
+        else if (node instanceof For || node instanceof While)
+          # if For need return results, then For must have already been wrapped then the @expressions is 0, otherwise, it is in the block, with @expressions after.
+          if @expressions.length
+            node = node.move(dest, false)
+            node = AsyncCall.wrap(node)
+          else
+            node = node.move(dest, true)
         else
           node = node.move(moved)
         if moved.length
@@ -1673,8 +1677,7 @@ exports.Code = class Code extends Base
   # arrow, generates a wrapper that saves the current value of `this` through
   # a closure.
   compileNode: (o) ->
-    flow = if @cross then flow = o.flows.clone() else {}
-    flow = extend(flow, @flow) if @flow
+    flow = if @cross then o.flows.clone(@flow) else @flow || {}
     o.flows.push(flow)
 
     o.sharedScope ||= @async
@@ -1902,7 +1905,7 @@ exports.While = class While extends Base
   compileNode: (o) ->
     info = {}
     if @results_id?
-      @returns = !@results_id
+      @returns = false
 
     unless @async
       o.indent += TAB
@@ -1970,7 +1973,6 @@ exports.While = class While extends Base
         new Literal(names.done),
         new Code([], new Block(done_body), 'boundfunc', flow)
       )
-      blocks.push done_fn
 
     if @results_id
       blocks.push new Literal "#{@results_id} = []"
@@ -2014,6 +2016,9 @@ exports.While = class While extends Base
     ret.omit_return = true
     blocks.push body_fn
 
+    if done_fn
+      blocks.push done_fn
+
     # call body
     call_body = new Call(new Literal(names.body))
     blocks.push call_body
@@ -2027,7 +2032,7 @@ exports.While = class While extends Base
     @moved = true
     @error("Guard cannot be async") if @guard?.async
     @condition = @condition.move(dest) if @condition.async
-    if @async
+    if @async && results
       @results_id = uid('res')
       @body.makeReturn(@results_id)
     else
@@ -2441,7 +2446,7 @@ exports.For = class For extends While
     lastJumps = last(body.expressions)?.jumps()
     @returns  = no if lastJumps and lastJumps instanceof Return
     if @results_id?
-      @returns  = !@results_id
+      @returns  = false
     source    = if @range then @source.base else @source
     scope     = o.scope
     name      = @name  and (@name.compile o, LEVEL_LIST)
@@ -2559,7 +2564,7 @@ exports.For = class For extends While
     # guard is part of body, should be in the body
     @error("Guard cannot be async") if @guard?.async
     @source = @source.move(dest) if @source?.async
-    if @async
+    if @async && results
       @results_id = uid('res')
       @body.makeReturn(@results_id)
     else
@@ -2606,8 +2611,7 @@ exports.Switch = class Switch extends Base
       expr = @lastNonComment block.expressions
       continue if expr instanceof Return or (expr instanceof Literal and expr.jumps() and expr.value isnt 'debugger')
 
-      break_code = if @wrapped then "#{flow.next}()" else 'break'
-      fragments.push cond.makeCode(idt2 + break_code + ';\n')
+      fragments.push cond.makeCode(idt2 + 'break;\n')
     if @otherwise and @otherwise.expressions.length
       fragments.push @makeCode(idt1 + "default:\n"), (@otherwise.compileToFragments o, LEVEL_TOP)..., @makeCode("\n")
     fragments.push @makeCode @tab + '}'
@@ -2660,10 +2664,11 @@ exports.If = class If extends Base
   jumps: (o) -> @body.jumps(o) or @elseBody?.jumps(o)
 
   compileNode: (o) ->
-    o.flows.push @flow if @flow
+    flow = o.flows.clone(@flow)
+    o.flows.push flow
     @asyncCompileNode(o)
     answer = if @isStatement o then @compileStatement o else @compileExpression o
-    o.flows.pop() if @flow
+    o.flows.pop()
     answer
 
   makeReturn: (res) ->
@@ -2723,7 +2728,7 @@ exports.If = class If extends Base
       else
         next = Base.move_code dest, next_body
 
-      @flow = {next: next}
+      @flow = {next: next.base.value}
       for body in [@body, @elseBody]
         call = new Call(next)
         call.can_forward = true
