@@ -2514,10 +2514,10 @@ exports.For = class For extends While
         body.expressions.unshift(ifPart = new If (new Parens @guard).invert(), new Literal "continue")
       else
         body = Block.wrap [ifPart = new If @guard, body] if @guard
-      if @async
-        ifPart.async = @async
-        ifPart.elseBody ?= new Block()
-        ifPart.elseBody.async = true
+        if @async
+          ifPart.async = @async
+          ifPart.elseBody ?= new Block()
+          ifPart.elseBody.async = true
     if @pattern
       body.expressions.unshift new Assign @name, new Literal "#{svar}[#{kvar}]"
     defPartFragments = [].concat @makeCode(defPart), @pluckDirectCall(o, body)
