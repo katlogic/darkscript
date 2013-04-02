@@ -256,7 +256,7 @@ exports.Base = class Base
         if self instanceof Block
           Base.scopes.push self
           Base.scope = self
-        else if self instanceof Assign && names = self?.variable.get_names()
+        else if !(parent instanceof Obj) && self instanceof Assign && names = self?.variable.get_names()
           Base.scope.vars.push names...
         self.autocb ?= parent.autocb
         if self instanceof Code
