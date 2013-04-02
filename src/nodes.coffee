@@ -256,7 +256,7 @@ exports.Base = class Base
         if self instanceof Block
           Base.scopes.push self
           Base.scope = self
-        else if self instanceof Assign && !self.context && names = self?.variable.get_names()
+        else if self instanceof Assign && names = self?.variable.get_names()
           Base.scope.vars.push names...
         self.autocb ?= parent.autocb
         if self instanceof Code
@@ -1975,6 +1975,7 @@ exports.While = class While extends Base
       )
 
     if @results_id
+      o.scope.find(@results_id)
       blocks.push new Literal "#{@results_id} = []"
 
     if info.initPart
