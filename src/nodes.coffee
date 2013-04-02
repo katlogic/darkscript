@@ -156,7 +156,7 @@ exports.Base = class Base
   # This is what `coffee --nodes` prints out.
   toString: (idt = '', name = @constructor.name) ->
     tree = '\n' + idt + name
-    for v in ['autocb', 'async', 'bound', 'cross', 'moved', 'no_results'] when @[v]
+    for v in ['autocb', 'async', 'bound', 'cross', 'moved', 'no_results', 'generated'] when @[v]
       tree += " [#{v}]"
     if @omit_return
       tree += " [omit]"
@@ -2603,6 +2603,7 @@ exports.Switch = class Switch extends Base
     fragments = [].concat @makeCode(@tab + "switch ("),
       (if @subject then @subject.compileToFragments(o, LEVEL_PAREN) else @makeCode("false")),
       @makeCode(") {\n")
+    puts @
     for [conditions, block], i in @cases
       for cond in flatten [conditions]
         cond  = cond.invert() unless @subject
@@ -2610,7 +2611,7 @@ exports.Switch = class Switch extends Base
       fragments = fragments.concat body, @makeCode('\n') if (body = block.compileToFragments o, LEVEL_TOP).length > 0
       break if i is @cases.length - 1 and not @otherwise
       expr = @lastNonComment block.expressions
-      continue if expr instanceof Return or (expr instanceof Literal and expr.jumps() and expr.value isnt 'debugger')
+      continue if (expr instanceof Return && !flow.next) or (expr instanceof Literal and expr.jumps() and expr.value isnt 'debugger')
 
       fragments.push cond.makeCode(idt2 + 'break;\n')
     if @otherwise and @otherwise.expressions.length
