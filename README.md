@@ -32,7 +32,6 @@ a(b, function() {
   return console.log(x, y);
 });</pre></td>
 </tr></table>
-
 ### Condition
 <table width=100%><tr>
 	<td width=50% valign=top><pre>if i
@@ -59,7 +58,6 @@ if (i) {
   });
 }</pre></td>
 </tr></table>
-
 ### Loop
 Support For In, For Of, While with guard `when`
 <table width=100%><tr>
@@ -97,7 +95,6 @@ Support For In, For Of, While with guard `when`
   return xs = arguments[0];
 });</pre></td>
 </tr></table>
-
 ### Mathematics
 <table width=100%><tr>
 	<td width=50% valign=top><pre>x = a! + b! * c!</pre></td>
@@ -125,8 +122,8 @@ Support For In, For Of, While with guard `when`
 	<td width=50% valign=top><pre>A =
   a: a
   b: b!
-c: c</pre></td>
-	<td width=50% valign=top><pre>var A, a, b,
+  c: c</pre></td>
+	<td width=50% valign=top><pre>var A, a, b, c,
   _this = this;
 
 (function(_$cb$_0) {
@@ -135,14 +132,14 @@ c: c</pre></td>
   b(function(_$$_2) {
     _$cb$_0({
       a: _$$_1,
-      b: _$$_2
+      b: _$$_2,
+      c: c
     });
   });
 })(function() {
   return A = arguments[0];
 });</pre></td>
 </tr></table>
-
 ### Logical
 Support `||`, `&&`, `?`, `&&=`, `||=`, `?=`
 <table width=100%><tr>
@@ -170,7 +167,6 @@ console.log x</pre></td>
   return console.log(x);
 });</pre></td>
 </tr></table>
-
 ### Auto Callback
 <table width=100%><tr>
 	<td width=50% valign=top><pre>a = (autocb) -> return 3</pre></td>
