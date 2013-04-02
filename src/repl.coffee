@@ -1,197 +1,132 @@
-# A very simple Read-Eval-Print-Loop. Compiles one line at a time to JavaScript
-# and evaluates it. Good for simple tests, or poking around the **Node.js** API.
-# Using it looks like this:
-#
-#     coffee> console.log "#{num} bottles of beer" for num in [99..1]
-
-# Start by opening up `stdin` and `stdout`.
-stdin = process.openStdin()
-stdout = process.stdout
-
-# Require the **coffee-script** module to get access to the compiler.
+fs = require 'fs'
+path = require 'path'
+vm = require 'vm'
+nodeREPL = require 'repl'
 CoffeeScript = require './coffee-script'
-readline     = require 'readline'
-{inspect}    = require 'util'
-{Script}     = require 'vm'
-Module       = require 'module'
+{merge, prettyErrorMessage} = require './helpers'
 
-# REPL Setup
+replDefaults =
+  prompt: 'coffee> ',
+  historyFile: path.join(process.env.HOME, '.coffee_history')
+  historyMaxInputSize: 10240
+  eval: (input, context, filename, cb) ->
+    # XXX: multiline hack.
+    input = input.replace /\uFF00/g, '\n'
+    # Node's REPL sends the input ending with a newline and then wrapped in
+    # parens. Unwrap all that.
+    input = input.replace /^\(([\s\S]*)\n\)$/m, '$1'
 
-# Config
-REPL_PROMPT = 'toffee> '
-REPL_PROMPT_MULTILINE = '------> '
-REPL_PROMPT_CONTINUATION = '......> '
-enableColours = no
-unless process.platform is 'win32'
-  enableColours = not process.env.NODE_DISABLE_COLORS
+    # Require AST nodes to do some AST manipulation.
+    {Block, Assign, Value, Literal} = require './nodes'
 
-# Log an error.
-error = (err) ->
-  stdout.write (err.stack or err.toString()) + '\n'
+    try
+      # Generate the AST of the clean input.
+      ast = CoffeeScript.nodes input
+      # Add assignment to `_` variable to force the input to be an expression.
+      ast = new Block [
+        new Assign (new Value new Literal '_'), ast, '='
+      ]
+      js = ast.compile bare: yes, locals: Object.keys(context)
+      cb null, vm.runInContext(js, context, filename)
+    catch err
+      cb prettyErrorMessage(err, filename, input, yes)
 
-## Autocompletion
+addMultilineHandler = (repl) ->
+  {rli, inputStream, outputStream} = repl
 
-# Regexes to match complete-able bits of text.
-ACCESSOR  = /\s*([\w\.]+)(?:\.(\w*))$/
-SIMPLEVAR = /(\w+)$/i
+  multiline =
+    enabled: off
+    initialPrompt: repl.prompt.replace(/^[^> ]*/, (x) -> x.replace /./g, '-')
+    prompt: repl.prompt.replace(/^[^> ]*>?/, (x) -> x.replace /./g, '.')
+    buffer: ''
 
-# Returns a list of completions, and the completed text.
-autocomplete = (text) ->
-  completeAttribute(text) or completeVariable(text) or [[], text]
-
-# Attempt to autocomplete a chained dotted attribute: `one.two.three`.
-completeAttribute = (text) ->
-  if match = text.match ACCESSOR
-    [all, obj, prefix] = match
-    try obj = Script.runInThisContext obj
-    catch e
-      return
-    return unless obj?
-    obj = Object obj
-    candidates = Object.getOwnPropertyNames obj
-    while obj = Object.getPrototypeOf obj
-      for key in Object.getOwnPropertyNames obj when key not in candidates
-        candidates.push key
-    completions = getCompletions prefix, candidates
-    [completions, prefix]
-
-# Attempt to autocomplete an in-scope free variable: `one`.
-completeVariable = (text) ->
-  free = text.match(SIMPLEVAR)?[1]
-  free = "" if text is ""
-  if free?
-    vars = Script.runInThisContext 'Object.getOwnPropertyNames(Object(this))'
-    keywords = (r for r in CoffeeScript.RESERVED when r[..1] isnt '__')
-    candidates = vars
-    for key in keywords when key not in candidates
-      candidates.push key
-    completions = getCompletions free, candidates
-    [completions, free]
-
-# Return elements of candidates for which `prefix` is a prefix.
-getCompletions = (prefix, candidates) ->
-  el for el in candidates when 0 is el.indexOf prefix
-
-# Make sure that uncaught exceptions don't kill the REPL.
-process.on 'uncaughtException', error
-
-# The current backlog of multi-line code.
-backlog = ''
-
-# The main REPL function. **run** is called every time a line of code is entered.
-# Attempt to evaluate the command. If there's an exception, print it out instead
-# of exiting.
-run = (buffer) ->
-  # remove single-line comments
-  buffer = buffer.replace /(^|[\r\n]+)(\s*)##?(?:[^#\r\n][^\r\n]*|)($|[\r\n])/, "$1$2$3"
-  # remove trailing newlines
-  buffer = buffer.replace /[\r\n]+$/, ""
-  if multilineMode
-    backlog += "#{buffer}\n"
-    repl.setPrompt REPL_PROMPT_CONTINUATION
-    repl.prompt()
+  # Proxy node's line listener
+  nodeLineListener = rli.listeners('line')[0]
+  rli.removeListener 'line', nodeLineListener
+  rli.on 'line', (cmd) ->
+    if multiline.enabled
+      multiline.buffer += "#{cmd}\n"
+      rli.setPrompt multiline.prompt
+      rli.prompt true
+    else
+      nodeLineListener cmd
     return
-  if !buffer.toString().trim() and !backlog
-    repl.prompt()
+
+  # Handle Ctrl-v
+  inputStream.on 'keypress', (char, key) ->
+    return unless key and key.ctrl and not key.meta and not key.shift and key.name is 'v'
+    if multiline.enabled
+      # allow arbitrarily switching between modes any time before multiple lines are entered
+      unless multiline.buffer.match /\n/
+        multiline.enabled = not multiline.enabled
+        rli.setPrompt repl.prompt
+        rli.prompt true
+        return
+      # no-op unless the current line is empty
+      return if rli.line? and not rli.line.match /^\s*$/
+      # eval, print, loop
+      multiline.enabled = not multiline.enabled
+      rli.line = ''
+      rli.cursor = 0
+      rli.output.cursorTo 0
+      rli.output.clearLine 1
+      # XXX: multiline hack
+      multiline.buffer = multiline.buffer.replace /\n/g, '\uFF00'
+      rli.emit 'line', multiline.buffer
+      multiline.buffer = ''
+    else
+      multiline.enabled = not multiline.enabled
+      rli.setPrompt multiline.initialPrompt
+      rli.prompt true
     return
-  code = backlog += buffer
-  if code[code.length - 1] is '\\'
-    backlog = "#{backlog[...-1]}\n"
-    repl.setPrompt REPL_PROMPT_CONTINUATION
-    repl.prompt()
-    return
-  repl.setPrompt REPL_PROMPT
-  backlog = ''
+
+# Store and load command history from a file
+addHistory = (repl, filename, maxSize) ->
   try
-    _ = global._
-    returnValue = CoffeeScript.eval "_=(#{code}\n)", {
-      filename: 'repl'
-      modulename: 'repl'
-    }
-    if returnValue is undefined
-      global._ = _
-    repl.output.write "#{inspect returnValue, no, 2, enableColours}\n"
-  catch err
-    error err
-  repl.prompt()
+    # Get file info and at most 10KB of command history
+    stat = fs.statSync filename
+    size = Math.min maxSize, stat.size
+    # Read last `size` bytes from the file
+    readFd = fs.openSync filename, 'r'
+    buffer = new Buffer(size)
+    fs.readSync readFd, buffer, 0, size, stat.size - size
+    # Set the history on the interpreter
+    repl.rli.history = buffer.toString().split('\n').reverse()
+    # If the history file was truncated we should pop off a potential partial line
+    repl.rli.history.pop() if size is maxSize
+    # Shift off the final blank newline
+    repl.rli.history.shift() if repl.rli.history[0] is ''
+    repl.rli.historyIndex = -1
 
-if stdin.readable and stdin.isRaw
-  # handle piped input
-  pipedInput = ''
-  repl =
-    prompt: -> stdout.write @_prompt
-    setPrompt: (p) -> @_prompt = p
-    input: stdin
-    output: stdout
-    on: ->
-  stdin.on 'data', (chunk) ->
-    pipedInput += chunk
-    return unless /\n/.test pipedInput
-    lines = pipedInput.split "\n"
-    pipedInput = lines[lines.length - 1]
-    for line in lines[...-1] when line
-      stdout.write "#{line}\n"
-      run line
-    return
-  stdin.on 'end', ->
-    for line in pipedInput.trim().split "\n" when line
-      stdout.write "#{line}\n"
-      run line
-    stdout.write '\n'
-    process.exit 0
-else
-  # Create the REPL by listening to **stdin**.
-  if readline.createInterface.length < 3
-    repl = readline.createInterface stdin, autocomplete
-    stdin.on 'data', (buffer) -> repl.write buffer
-  else
-    repl = readline.createInterface stdin, stdout, autocomplete
+  fd = fs.openSync filename, 'a'
 
-multilineMode = off
+  repl.rli.addListener 'line', (code) ->
+    if code and code.length and code isnt '.history'
+      # Save the latest command in the file
+      fs.write fd, "#{code}\n"
 
-# Handle multi-line mode switch
-repl.input.on 'keypress', (char, key) ->
-  # test for Ctrl-v
-  return unless key and key.ctrl and not key.meta and not key.shift and key.name is 'v'
-  cursorPos = repl.cursor
-  repl.output.cursorTo 0
-  repl.output.clearLine 1
-  multilineMode = not multilineMode
-  repl._line() if not multilineMode and backlog
-  backlog = ''
-  repl.setPrompt (newPrompt = if multilineMode then REPL_PROMPT_MULTILINE else REPL_PROMPT)
-  repl.prompt()
-  repl.output.cursorTo newPrompt.length + (repl.cursor = cursorPos)
+  process.on 'exit', ->
+    fs.closeSync fd
 
-# Handle Ctrl-d press at end of last line in multiline mode
-repl.input.on 'keypress', (char, key) ->
-  return unless multilineMode and repl.line
-  # test for Ctrl-d
-  return unless key and key.ctrl and not key.meta and not key.shift and key.name is 'd'
-  multilineMode = off
-  repl._line()
+  # Add a command to show the history stack
+  repl.commands['.history'] =
+    help: 'Show command history'
+    action: ->
+      history = (repl.rli.history[k] for k in Object.keys(repl.rli.history)).reverse()
+      repl.outputStream.write "#{history.join '\n'}\n"
+      repl.displayPrompt()
 
-repl.on 'attemptClose', ->
-  if multilineMode
-    multilineMode = off
-    repl.output.cursorTo 0
-    repl.output.clearLine 1
-    repl._onLine repl.line
-    return
-  if backlog or repl.line
-    backlog = ''
-    repl.historyIndex = -1
-    repl.setPrompt REPL_PROMPT
-    repl.output.write '\n(^C again to quit)'
-    repl._line (repl.line = '')
-  else
-    repl.close()
+module.exports =
+  start: (opts = {}) ->
+    [major, minor, build] = process.versions.node.split('.').map (n) -> parseInt(n)
 
-repl.on 'close', ->
-  repl.output.write '\n'
-  repl.input.destroy()
+    if major is 0 and minor < 8
+      console.warn "Node 0.8.0+ required for CoffeeScript REPL"
+      process.exit 1
 
-repl.on 'line', run
-
-repl.setPrompt REPL_PROMPT
-repl.prompt()
+    opts = merge replDefaults, opts
+    repl = nodeREPL.start opts
+    repl.on 'exit', -> repl.outputStream.write '\n'
+    addMultilineHandler repl
+    addHistory repl, opts.historyFile, opts.historyMaxInputSize if opts.historyFile
+    repl

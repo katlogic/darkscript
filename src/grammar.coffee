@@ -32,11 +32,27 @@ unwrap = /^function\s*\(\)\s*\{\s*return\s*([\s\S]*);\s*\}/
 # previous nonterminal.
 o = (patternString, action, options) ->
   patternString = patternString.replace /\s{2,}/g, ' '
+  patternCount = patternString.split(' ').length
   return [patternString, '$$ = $1;', options] unless action
   action = if match = unwrap.exec action then match[1] else "(#{action}())"
+
+  # All runtime functions we need are defined on "yy"
   action = action.replace /\bnew /g, '$&yy.'
   action = action.replace /\b(?:Block\.wrap|extend)\b/g, 'yy.$&'
-  [patternString, "$$ = #{action};", options]
+
+  # Returns a function which adds location data to the first parameter passed
+  # in, and returns the parameter.  If the parameter is not a node, it will
+  # just be passed through unaffected.
+  addLocationDataFn = (first, last) ->
+    if not last
+      "yy.addLocationDataFn(@#{first})"
+    else
+      "yy.addLocationDataFn(@#{first}, @#{last})"
+
+  action = action.replace /LOC\(([0-9]*)\)/g, addLocationDataFn('$1')
+  action = action.replace /LOC\(([0-9]*),\s*([0-9]*)\)/g, addLocationDataFn('$1', '$2')
+
+  [patternString, "$$ = #{addLocationDataFn(1, patternCount)}(#{action});", options]
 
 # Grammatical Rules
 # -----------------
@@ -72,6 +88,7 @@ grammar =
   Line: [
     o 'Expression'
     o 'Statement'
+    o 'Async'
   ]
 
   # Pure statements which cannot be expressions.
@@ -81,12 +98,22 @@ grammar =
     o 'STATEMENT',                              -> new Literal $1
   ]
 
+  SimpleAssignableList: [
+	  o 'SimpleAssignable , SimpleAssignable',     -> [$1, $3]
+	  o 'SimpleAssignableList , SimpleAssignable',-> $1.concat $3
+  ]
+
+  Async: [
+    o 'SimpleAssignableList = Expression',           -> new Assign new Value(new Arr($1)), $3
+  ]
+
   # All the different types of expressions in our language. The basic unit of
   # CoffeeScript is the **Expression** -- everything that can be an expression
   # is one. Blocks serve as the building blocks of many other rules, making
   # them somewhat circular.
   Expression: [
     o 'Value'
+    o 'AsyncValue'
     o 'Invocation'
     o 'Code'
     o 'Operation'
@@ -143,9 +170,9 @@ grammar =
   # the ordinary **Assign** is that these allow numbers and strings as keys.
   AssignObj: [
     o 'ObjAssignable',                          -> new Value $1
-    o 'ObjAssignable : Expression',             -> new Assign new Value($1), $3, 'object'
+    o 'ObjAssignable : Expression',             -> new Assign LOC(1)(new Value($1)), $3, 'object'
     o 'ObjAssignable :
-       INDENT Expression OUTDENT',              -> new Assign new Value($1), $4, 'object'
+       INDENT Expression OUTDENT',              -> new Assign LOC(1)(new Value($1)), $4, 'object'
     o 'Comment'
   ]
 
@@ -157,7 +184,7 @@ grammar =
 
   # A return statement from a function body.
   Return: [
-    o 'RETURN Expression',                      -> new Return $2
+    o 'RETURN Arguments',                       -> new Return $2
     o 'RETURN',                                 -> new Return
   ]
 
@@ -242,12 +269,17 @@ grammar =
     o 'This'
   ]
 
+  AsyncValue: [
+    o 'Value ASYNC'
+  ]
+
   # The general group of accessors into an object, by property, by prototype
   # or by array index or slice.
   Accessor: [
     o '.  Identifier',                          -> new Access $2
     o '?. Identifier',                          -> new Access $2, 'soak'
-    o ':: Identifier',                          -> [(new Access new Literal 'prototype'), new Access $2]
+    o ':: Identifier',                          -> [LOC(1)(new Access new Literal('prototype')), LOC(2)(new Access $2)]
+    o '?:: Identifier',                         -> [LOC(1)(new Access new Literal('prototype'), 'soak'), LOC(2)(new Access $2)]
     o '::',                                     -> new Access new Literal 'prototype'
     o 'Index'
   ]
@@ -294,6 +326,7 @@ grammar =
   # Ordinary function invocation, or a chained series of calls.
   Invocation: [
     o 'Value OptFuncExist Arguments',           -> new Call $1, $3, $2
+    o 'AsyncValue OptFuncExist Arguments',      -> new AsyncCall $1, $3, $2
     o 'Invocation OptFuncExist Arguments',      -> new Call $1, $3, $2
     o 'SUPER',                                  -> new Call 'super', [new Splat new Literal 'arguments']
     o 'SUPER Arguments',                        -> new Call 'super', $2
@@ -319,7 +352,7 @@ grammar =
 
   # A reference to a property on *this*.
   ThisProperty: [
-    o '@ Identifier',                           -> new Value new Literal('this'), [new Access($2)], 'this'
+    o '@ Identifier',                           -> new Value LOC(1)(new Literal('this')), [LOC(2)(new Access($2))], 'this'
   ]
 
   # The array literal.
@@ -383,7 +416,7 @@ grammar =
   # A catch clause names its error and runs a block of code.
   Catch: [
     o 'CATCH Identifier Block',                 -> [$2, $3]
-    o 'CATCH Object Block',                     -> [new Value($2), $3]
+    o 'CATCH Object Block',                     -> [LOC(2)(new Value($2)), $3]
   ]
 
   # Throw an exception object.
@@ -412,14 +445,14 @@ grammar =
   # or postfix, with a single expression. There is no do..while.
   While: [
     o 'WhileSource Block',                      -> $1.addBody $2
-    o 'Statement  WhileSource',                 -> $2.addBody Block.wrap [$1]
-    o 'Expression WhileSource',                 -> $2.addBody Block.wrap [$1]
+    o 'Statement  WhileSource',                 -> $2.addBody LOC(1) Block.wrap([$1])
+    o 'Expression WhileSource',                 -> $2.addBody LOC(1) Block.wrap([$1])
     o 'Loop',                                   -> $1
   ]
 
   Loop: [
-    o 'LOOP Block',                             -> new While(new Literal 'true').addBody $2
-    o 'LOOP Expression',                        -> new While(new Literal 'true').addBody Block.wrap [$2]
+    o 'LOOP Block',                             -> new While(LOC(1) new Literal 'true').addBody $2
+    o 'LOOP Expression',                        -> new While(LOC(1) new Literal 'true').addBody LOC(2) Block.wrap [$2]
   ]
 
   # Array, object, and range comprehensions, at the most generic level.
@@ -432,7 +465,7 @@ grammar =
   ]
 
   ForBody: [
-    o 'FOR Range',                              -> source: new Value($2)
+    o 'FOR Range',                              -> source: LOC(2) new Value($2)
     o 'ForStart ForSource',                     -> $2.own = $1.own; $2.name = $1[0]; $2.index = $1[1]; $2
   ]
 
@@ -502,8 +535,8 @@ grammar =
   If: [
     o 'IfBlock'
     o 'IfBlock ELSE Block',                     -> $1.addElse $3
-    o 'Statement  POST_IF Expression',          -> new If $3, Block.wrap([$1]), type: $2, statement: true
-    o 'Expression POST_IF Expression',          -> new If $3, Block.wrap([$1]), type: $2, statement: true
+    o 'Statement  POST_IF Expression',          -> new If $3, LOC(1)(Block.wrap [$1]), type: $2, statement: true
+    o 'Expression POST_IF Expression',          -> new If $3, LOC(1)(Block.wrap [$1]), type: $2, statement: true
   ]
 
   # Arithmetic and logical operators, working on one or more operands.
@@ -542,6 +575,8 @@ grammar =
        Expression',                             -> new Assign $1, $3, $2
     o 'SimpleAssignable COMPOUND_ASSIGN
        INDENT Expression OUTDENT',              -> new Assign $1, $4, $2
+    o 'SimpleAssignable COMPOUND_ASSIGN TERMINATOR
+       Expression',                             -> new Assign $1, $4, $2
     o 'SimpleAssignable EXTENDS Expression',    -> new Extends $1, $3
   ]
 
@@ -558,7 +593,7 @@ grammar =
 #
 #     (2 + 3) * 4
 operators = [
-  ['left',      '.', '?.', '::']
+  ['left',      '.', '?.', '::', '?::']
   ['left',      'CALL_START', 'CALL_END']
   ['nonassoc',  '++', '--']
   ['left',      '?']
@@ -572,7 +607,7 @@ operators = [
   ['nonassoc',  'INDENT', 'OUTDENT']
   ['right',     '=', ':', 'COMPOUND_ASSIGN', 'RETURN', 'THROW', 'EXTENDS']
   ['right',     'FORIN', 'FOROF', 'BY', 'WHEN']
-  ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS']
+  ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'ASYNC']
   ['right',     'POST_IF']
 ]
 

@@ -5,11 +5,18 @@
 # shorthand into the unambiguous long form, add implicit indentation and
 # parentheses, and generally clean things up.
 
+# Create a generated token: one that exists due to a use of implicit syntax.
+generate = (tag, value) ->
+    tok = [tag, value]
+    tok.generated = yes
+    tok
+
 # The **Rewriter** class is used by the [Lexer](lexer.html), directly against
 # its internal array of tokens.
 class exports.Rewriter
 
   # Helpful snippet for debugging:
+  #
   #     console.log (t[0] + '/' + t[1] for t in @tokens).join ' '
 
   # Rewrite the token stream in multiple passes, one logical filter at
@@ -18,17 +25,15 @@ class exports.Rewriter
   # like this. The order of these passes matters -- indentation must be
   # corrected before implicit parentheses can be wrapped around blocks of code.
   rewrite: (@tokens) ->
-    @rewriteAsyncCondition()
     @removeLeadingNewlines()
     @removeMidExpressionNewlines()
     @closeOpenCalls()
     @closeOpenIndexes()
     @addImplicitIndentation()
     @tagPostfixConditionals()
-    @addImplicitBraces()
-    @addImplicitParentheses()
-    @rewriteAsynchronous()
-    @extend()
+    @addImplicitBracesAndParens()
+    @addLocationDataToGeneratedTokens()
+    @rewriteAsync()
     @tokens
 
   # Rewrite the token stream, looking one token ahead and behind.
@@ -73,7 +78,6 @@ class exports.Rewriter
   # its paired close. We have the mis-nested outdent case included here for
   # calls that close on the same line, just before their outdent.
   closeOpenCalls: ->
-
     condition = (token, i) ->
       token[0] in [')', 'CALL_END'] or
       token[0] is 'OUTDENT' and @tag(i - 1) is ')'
@@ -88,7 +92,6 @@ class exports.Rewriter
   # The lexer has tagged the opening parenthesis of an indexing operation call.
   # Match it with its paired close.
   closeOpenIndexes: ->
-
     condition = (token, i) ->
       token[0] in [']', 'INDEX_END']
 
@@ -99,106 +102,263 @@ class exports.Rewriter
       @detectEnd i + 1, condition, action if token[0] is 'INDEX_START'
       1
 
-  # Object literals may be written with implicit braces, for simple cases.
-  # Insert the missing braces here, so that the parser doesn't have to.
-  addImplicitBraces: ->
+  # Match tags in token stream starting at i with pattern, skipping HERECOMMENTs
+  # Pattern may consist of strings (equality), an array of strings (one of)
+  # or null (wildcard)
+  matchTags: (i, pattern...) ->
+    fuzz = 0
+    for j in [0 ... pattern.length]
+      fuzz += 2 while @tag(i + j + fuzz) is 'HERECOMMENT'
+      continue if not pattern[j]?
+      pattern[j] = [pattern[j]] if typeof pattern[j] is 'string'
+      return no if @tag(i + j + fuzz) not in pattern[j]
+    yes
 
-    stack       = []
-    start       = null
-    startsLine  = null
-    sameLine    = yes
-    startIndent = 0
-    startIndex  = 0
+  # yes iff standing in front of something looking like
+  # @<x>: or <x>:, skipping over 'HERECOMMENT's
+  looksObjectish: (j) ->
+    @matchTags(j, '@', null, ':') or @matchTags(j, null, ':')
 
-    condition = (token, i) ->
-      [one, two, three] = @tokens[i + 1 .. i + 3]
-      return no if 'HERECOMMENT' is one?[0]
-      [tag] = token
-      sameLine = no if tag in LINEBREAKS
-      return (
-        (tag in ['TERMINATOR', 'OUTDENT'] or 
-          (tag in IMPLICIT_END and sameLine and not (i - startIndex is 1))) and
-        ((!startsLine and @tag(i - 1) isnt ',') or
-          not (two?[0] is ':' or one?[0] is '@' and three?[0] is ':'))) or
-        (tag is ',' and one and
-          one[0] not in ['IDENTIFIER', 'NUMBER', 'STRING', '@', 'TERMINATOR', 'OUTDENT']
-      )
+  # yes iff current line of tokens contain an element of tags on same
+  # expression level. Stop searching at LINEBREAKS or explicit start of
+  # containing balanced expression.
+  findTagsBackwards: (i, tags) ->
+    backStack = []
+    while i >= 0 and (backStack.length or
+          @tag(i) not in tags and
+          (@tag(i) not in EXPRESSION_START or @tokens[i].generated) and
+          @tag(i) not in LINEBREAKS)
+      backStack.push @tag(i) if @tag(i) in EXPRESSION_END
+      backStack.pop() if @tag(i) in EXPRESSION_START and backStack.length
+      i -= 1
+    @tag(i) in tags
 
-    action = (token, i) ->
-      tok = @generate '}', '}', token[2]
-      @tokens.splice i, 0, tok
+  # Look for signs of implicit calls and objects in the token stream and
+  # add them.
+  addImplicitBracesAndParens: ->
+    # Track current balancing depth (both implicit and explicit) on stack.
+    stack = []
 
     @scanTokens (token, i, tokens) ->
-      if (tag = token[0]) in EXPRESSION_START
-        stack.push [(if tag is 'INDENT' and @tag(i - 1) is '{' then '{' else tag), i]
-        return 1
+      [tag]     = token
+      [prevTag] = if i > 0 then tokens[i - 1] else []
+      [nextTag] = if i < tokens.length - 1 then tokens[i + 1] else []
+      stackTop  = -> stack[stack.length - 1]
+      startIdx  = i
+
+      # Helper function, used for keeping track of the number of tokens consumed
+      # and spliced, when returning for getting a new token.
+      forward   = (n) -> i - startIdx + n
+
+      # Helper functions
+      inImplicit        = -> stackTop()?[2]?.ours
+      inImplicitCall    = -> inImplicit() and stackTop()?[0] is '('
+      inImplicitObject  = -> inImplicit() and stackTop()?[0] is '{'
+      # Unclosed control statement inside implicit parens (like
+      # class declaration or if-conditionals)
+      inImplicitControl = -> inImplicit and stackTop()?[0] is 'CONTROL'
+
+      startImplicitCall = (j) ->
+        idx = j ? i
+        stack.push ['(', idx, ours: yes]
+        tokens.splice idx, 0, generate 'CALL_START', '('
+        i += 1 if not j?
+
+      endImplicitCall = ->
+        stack.pop()
+        tokens.splice i, 0, generate 'CALL_END', ')'
+        i += 1
+
+      startImplicitObject = (j, startsLine = yes) ->
+        idx = j ? i
+        stack.push ['{', idx, sameLine: yes, startsLine: startsLine, ours: yes]
+        tokens.splice idx, 0, generate '{', generate(new String('{'))
+        i += 1 if not j?
+
+      endImplicitObject = (j) ->
+        j = j ? i
+        stack.pop()
+        tokens.splice j, 0, generate '}', '}'
+        i += 1
+
+      # Don't end an implicit call on next indent if any of these are in an argument
+      if inImplicitCall() and tag in ['IF', 'TRY', 'FINALLY', 'CATCH',
+        'CLASS', 'SWITCH']
+        stack.push ['CONTROL', i, ours: true]
+        return forward(1)
+
+      if tag is 'INDENT' and inImplicit()
+
+        # An `INDENT` closes an implicit call unless
+        #
+        #  1. We have seen a `CONTROL` argument on the line.
+        #  2. The last token before the indent is part of the list below
+        #
+        if prevTag not in ['=>', '->', '[', '(', ',', '{', 'TRY', 'ELSE', '=']
+          endImplicitCall() while inImplicitCall()
+        stack.pop() if inImplicitControl()
+        stack.push [tag, i]
+        return forward(1)
+
+      # Straightforward start of explicit expression
+      if tag in EXPRESSION_START
+        stack.push [tag, i]
+        return forward(1)
+
+      # Close all implicit expressions inside of explicitly closed expressions.
       if tag in EXPRESSION_END
-        start = stack.pop()
-        return 1
-      return 1 unless tag is ':' and
-        ((ago = @tag i - 2) is ':' or stack[stack.length - 1]?[0] isnt '{')
-      sameLine = yes
-      startIndex = i + 1
-      stack.push ['{']
-      idx =  if ago is '@' then i - 2 else i - 1
-      idx -= 2 while @tag(idx - 2) is 'HERECOMMENT'
-      prevTag = @tag(idx - 1)
-      startsLine = not prevTag or (prevTag in LINEBREAKS) or  prevTag is '.'
-      value = new String('{')
-      value.generated = yes
-      tok = @generate '{', value, token[2]
-      tokens.splice idx, 0, tok
-      @detectEnd i + 2, condition, action
-      2
+        while inImplicit()
+          if inImplicitCall()
+            endImplicitCall()
+          else if inImplicitObject()
+            endImplicitObject()
+          else
+            stack.pop()
+        stack.pop()
 
-  # Methods may be optionally called without parentheses, for simple cases.
-  # Insert the implicit parentheses here, so that the parser doesn't have to
-  # deal with them.
-  addImplicitParentheses: ->
+      # Recognize standard implicit calls like
+      # f a, f() b, f? c, h[0] d etc.
+      if (tag in IMPLICIT_FUNC and token.spaced and not token.stringEnd or
+          tag is '?' and i > 0 and not tokens[i - 1].spaced) and
+         (nextTag in IMPLICIT_CALL or
+          nextTag in IMPLICIT_UNSPACED_CALL and
+          not tokens[i + 1]?.spaced and not tokens[i + 1]?.newLine)
+        tag = token[0] = 'FUNC_EXIST' if tag is '?'
+        startImplicitCall i + 1
+        return forward(2)
 
-    noCall = seenSingle = seenControl = no
+      # Implicit call taking an implicit indented object as first argument.
+      #
+      #     f
+      #       a: b
+      #       c: d
+      #
+      # and
+      #
+      #     f
+      #       1
+      #       a: b
+      #       b: c
+      #
+      # Don't accept implicit calls of this type, when on the same line
+      # as the control strucutures below as that may misinterpret constructs like:
+      #
+      #     if f
+      #        a: 1
+      # as
+      #
+      #     if f(a: 1)
+      #
+      # which is probably always unintended.
+      # Furthermore don't allow this in literal arrays, as
+      # that creates grammatical ambiguities.
+      if @matchTags(i, IMPLICIT_FUNC, 'INDENT', null, ':') and
+         not @findTagsBackwards(i, ['CLASS', 'EXTENDS', 'IF', 'CATCH',
+          'SWITCH', 'LEADING_WHEN', 'FOR', 'WHILE', 'UNTIL'])
+        startImplicitCall i + 1
+        stack.push ['INDENT', i + 2]
+        return forward(3)
 
-    condition = (token, i) ->
-      [tag] = token
-      return yes if not seenSingle and token.fromThen
-      seenSingle  = yes if tag in ['IF', 'ELSE', 'CATCH', '->', '=>', 'CLASS']
-      seenControl = yes if tag in ['IF', 'ELSE', 'SWITCH', 'TRY', '=']
-      return yes if tag in ['.', '?.', '::'] and @tag(i - 1) is 'OUTDENT'
-      not token.generated and @tag(i - 1) isnt ',' and (tag in IMPLICIT_END or
-        (tag is 'INDENT' and not seenControl)) and
-        (tag isnt 'INDENT' or
-          (@tag(i - 2) not in ['CLASS', 'EXTENDS'] and @tag(i - 1) not in IMPLICIT_BLOCK and
-          not ((post = @tokens[i + 1]) and post.generated and post[0] is '{')))
+      # Implicit objects start here
+      if tag is ':'
+        # Go back to the (implicit) start of the object
+        if @tag(i - 2) is '@' then s = i - 2 else s = i - 1
+        s -= 2 while @tag(s - 2) is 'HERECOMMENT'
 
-    action = (token, i) ->
-      @tokens.splice i, 0, @generate 'CALL_END', ')', token[2]
+        startsLine = s is 0 or @tag(s - 1) in LINEBREAKS or tokens[s - 1].newLine
+        # Are we just continuing an already declared object?
+        if stackTop()
+          [stackTag, stackIdx] = stackTop()
+          if (stackTag is '{' or stackTag is 'INDENT' and @tag(stackIdx - 1) is '{') and
+             (startsLine or @tag(s - 1) is ',' or @tag(s - 1) is '{')
+            return forward(1)
 
+        startImplicitObject(s, !!startsLine)
+        return forward(2)
+
+      # End implicit calls when chaining method calls
+      # like e.g.:
+      #
+      #     f ->
+      #       a
+      #     .g b, ->
+      #       c
+      #     .h a
+      #
+      if prevTag is 'OUTDENT' and inImplicitCall() and tag in ['.', '?.', '::', '?::']
+        endImplicitCall()
+        return forward(1)
+
+      stackTop()[2].sameLine = no if inImplicitObject() and tag in LINEBREAKS
+
+      if tag in IMPLICIT_END
+        while inImplicit()
+          [stackTag, stackIdx, {sameLine, startsLine}] = stackTop()
+          # Close implicit calls when reached end of argument list
+          if inImplicitCall() and prevTag isnt ','
+            endImplicitCall()
+          # Close implicit objects such as:
+          # return a: 1, b: 2 unless true
+          else if inImplicitObject() and sameLine and not startsLine
+            endImplicitObject()
+          # Close implicit objects when at end of line, line didn't end with a comma
+          # and the implicit object didn't start the line or the next line doesn't look like
+          # the continuation of an object.
+          else if inImplicitObject() and tag is 'TERMINATOR' and prevTag isnt ',' and
+                  not (startsLine and @looksObjectish(i + 1))
+            endImplicitObject()
+          else
+            break
+
+      # Close implicit object if comma is the last character
+      # and what comes after doesn't look like it belongs.
+      # This is used for trailing commas and calls, like:
+      #
+      #     x =
+      #         a: b,
+      #         c: d,
+      #     e = 2
+      #
+      # and
+      #
+      #     f a, b: c, d: e, f, g: h: i, j
+      #
+      if tag is ',' and not @looksObjectish(i + 1) and inImplicitObject() and
+         (nextTag isnt 'TERMINATOR' or not @looksObjectish(i + 2))
+        # When nextTag is OUTDENT the comma is insignificant and
+        # should just be ignored so embed it in the implicit object.
+        #
+        # When it isn't the comma go on to play a role in a call or
+        # array further up the stack, so give it a chance.
+
+        offset = if nextTag is 'OUTDENT' then 1 else 0
+        while inImplicitObject()
+          endImplicitObject i + offset
+      return forward(1)
+
+  # Add location data to all tokens generated by the rewriter.
+  addLocationDataToGeneratedTokens: ->
     @scanTokens (token, i, tokens) ->
-      tag     = token[0]
-      noCall  = yes if tag in ['CLASS', 'IF', 'FOR', 'WHILE']
-      [prev, current, next] = tokens[i - 1 .. i + 1]
-      callObject  = not noCall and tag is 'INDENT' and
-                    next and next.generated and next[0] is '{' and
-                    prev and prev[0] in IMPLICIT_FUNC
-      seenSingle  = no
-      seenControl = no
-      noCall      = no if tag in LINEBREAKS
-      token.call  = yes if prev and not prev.spaced and tag is '?'
-      return 1 if token.fromThen
-      return 1 unless callObject or
-        prev?.spaced and (prev.call or prev[0] in IMPLICIT_FUNC) and
-        (tag in IMPLICIT_CALL or not (token.spaced or token.newLine) and tag in IMPLICIT_UNSPACED_CALL)
-      tokens.splice i, 0, @generate 'CALL_START', '(', token[2]
-      @detectEnd i + 1, condition, action
-      prev[0] = 'FUNC_EXIST' if prev[0] is '?'
-      2
+      return 1 if     token[2]
+      return 1 unless token.generated or token.explicit
+      if token[0] is '{' and nextLocation=tokens[i + 1]?[2]
+          {first_line: line, first_column: column} = nextLocation
+      else if prevLocation = tokens[i - 1]?[2]
+          {last_line: line, last_column: column} = prevLocation
+      else
+          line = column = 0
+      token[2] =
+        first_line:   line
+        first_column: column
+        last_line:    line
+        last_column:  column
+      1
 
   # Because our grammar is LALR(1), it can't handle some single-line
   # expressions that lack ending delimiters. The **Rewriter** adds the implicit
   # blocks, so it doesn't need to. ')' can close a single-line block,
   # but we need to make sure it's balanced.
   addImplicitIndentation: ->
-
     starter = indent = outdent = null
 
     condition = (token, i) ->
@@ -214,21 +374,49 @@ class exports.Rewriter
         tokens.splice i, 1
         return 0
       if tag is 'ELSE' and @tag(i - 1) isnt 'OUTDENT'
-        tokens.splice i, 0, @indentation(token)...
+        tokens.splice i, 0, @indentation()...
         return 2
       if tag is 'CATCH' and @tag(i + 2) in ['OUTDENT', 'TERMINATOR', 'FINALLY']
-        tokens.splice i + 2, 0, @indentation(token)...
+        tokens.splice i + 2, 0, @indentation()...
         return 4
       if tag in SINGLE_LINERS and @tag(i + 1) isnt 'INDENT' and
          not (tag is 'ELSE' and @tag(i + 1) is 'IF')
         starter = tag
-        [indent, outdent] = @indentation token, yes
+        [indent, outdent] = @indentation yes
         indent.fromThen   = true if starter is 'THEN'
         tokens.splice i + 1, 0, indent
         @detectEnd i + 2, condition, action
         tokens.splice i, 1 if tag is 'THEN'
         return 1
       return 1
+
+  rewriteAsync: ->
+    dest = []
+    {tokens} = @
+    while token = tokens.shift()
+      if token[0] == 'IDENTIFIER' && token[1].slice(-1) == '!'
+        line = token[2]
+        token[1] = token[1].slice(0,-1)
+        tag_async = ['ASYNC', 'async', line]
+        tag_cs = ['CALL_START', '(', line]
+        tag_ce = ['CALL_END', ')', line]
+        dest.push token
+        dest.push tag_async
+        if tokens[0]?[0] != 'CALL_START'
+          dest.push tag_cs
+          dest.push tag_ce
+      else if token[0] == 'ASYNC' && tokens[0]?[0] != 'CALL_START'
+        line = token[2]
+        tag_cs = ['CALL_START', '(', line]
+        tag_ce = ['CALL_END', ')', line]
+        dest.push token
+        dest.push tag_cs
+        dest.push tag_ce
+      else
+        dest.push token
+
+    @tokens = dest
+
 
   # Tag postfix conditionals as such, so that we can parse them with a
   # different precedence.
@@ -237,7 +425,9 @@ class exports.Rewriter
     original = null
 
     condition = (token, i) ->
-      token[0] in ['TERMINATOR', 'INDENT']
+      [tag] = token
+      [prevTag] = @tokens[i - 1]
+      tag is 'TERMINATOR' or (tag is 'INDENT' and prevTag not in SINGLE_LINERS)
 
     action = (token, i) ->
       if token[0] isnt 'INDENT' or (token.generated and not token.fromThen)
@@ -249,591 +439,15 @@ class exports.Rewriter
       @detectEnd i + 1, condition, action
       1
 
-
-  toffeeHelpers: ->
-    # shift from tokens until condition is true
-    # the result contains the all shifted tokens with the same order
-    shiftTokensUntil = (tokens, condition) =>
-      result = []
-      while token = tokens.shift()
-        result.push token
-        if condition(token)
-          break
-      result
-
-    popTokensUntil = (tokens, condition) =>
-      result = []
-      while token = tokens.pop()
-        result.unshift token
-        if condition(token)
-          break
-      result
-
-    shiftBlockTokensUntil = (tokens, condition, grab=true) =>
-      level = 0
-      found = false
-      result = shiftTokensUntil tokens, (token) =>
-        tag = token[TAG]
-        name = token[VALUE]
-        --level if ASYNC_END[tag]
-        return found = true if level < 0
-        ++level if ASYNC_START[tag]
-        found = condition(token) and level is 0
-
-      if found and !grab
-        tokens.unshift result.pop()
-      result
-
-    popBlockTokensUntil = (tokens, condition, grab=true) =>
-      level = 0
-      found = false
-      result = popTokensUntil tokens, (token) =>
-        tag = token[TAG]
-        name = token[VALUE]
-        --level if ASYNC_START[tag]
-        return found = true if level < 0
-        ++level if ASYNC_END[tag]
-        found = condition(token) and level is 0
-
-      if found and !grab
-        tokens.push result.shift()
-      result
-
-    shiftBlockTokens = (tokens, keys, grab = true) =>
-      if typeof keys is 'string'
-        keys = [keys]
-
-      result = shiftBlockTokensUntil tokens, (token) =>
-        found = token[TAG] in keys
-      , grab
-
-    popBlockTokens = (tokens, keys, grab = true) =>
-      if typeof keys is 'string'
-        keys = [keys]
-
-      popBlockTokensUntil tokens, (token) =>
-        found = token[TAG] in keys
-      , grab
-
-    # shift until met OUTDENT
-    shiftConditionBlock = (tokens) =>
-      shiftBlockTokensUntil tokens, (token) =>
-        token[TAG] is 'OUTDENT'
-
-    # shift a block such as {...}, [...]
-    shiftNextBlock = (tokens) =>
-      shiftBlockTokensUntil tokens, (token) =>
-        ASYNC_END[token[TAG]]
-
-    shiftNextBlockGreedy = (tokens) =>
-      shiftBlockTokensUntil tokens, (token) =>
-        false
-      , false
-
-    shiftParam = (tokens) =>
-      found = false
-      result = shiftBlockTokensUntil tokens, (token) =>
-        found = token[TAG] in [',', 'TERMINATOR']
-      tokens.unshift result.pop() if found
-      result
-
-    # get tag in tokens
-    tag = (tokens, idx = -1) ->
-      idx += tokens.length if idx < 0
-      if 0 <= idx < tokens.length
-        tokens[idx][TAG]
-      else
-        null
-
-    # if args[0] is array  then push tokens
-    # if args[0] is string then push token
-    smartPush = (args...) =>
-      dest = args.shift()
-      for tokens in args
-        if tokens.length
-          if tokens[0].substr
-            dest.push tokens
-          else
-            dest.push token for token in tokens
-      @
-
-    getToken = (tokens, n = -1) =>
-      n += tokens.length if n < 0 
-      if 0 <= n < tokens.length
-        tokens[n]
-      else
-        null
-
-    # pop caller from tokens
-    popCaller = (tokens)=>
-      caller = []
-      level  = 0
-      while token = getToken(tokens)
-        tag = token[TAG]
-        break   if !IDENT[tag] and level is 0
-        ++level if PARENS_END[tag]
-        --level if PARENS_START[tag]
-        tokens.pop()
-        caller.unshift token
-      caller
-
-    getTag = tag
-    {
-      shiftTokensUntil, shiftConditionBlock, shiftNextBlock, shiftParam, shiftBlockTokens, shiftNextBlockGreedy,
-      popBlockTokensUntil,
-      tag, getTag, getToken, popCaller,
-      smartPush
-    }
-
-  asyncFunctions: (stack, async_tokens) ->
-
-    line  = 0
-
-    getToken = (n = -1) =>
-      n += async_tokens.length if n < 0 
-      if 0 <= n < async_tokens.length
-        async_tokens[n]
-      else
-        null
-
-    getTag = (n = -1)=>
-      if token = getToken(n)
-        token[0]
-      else
-        null
-
-    getAsync = (token) =>
-      if token[TAG] is 'IDENTIFIER' and m = token[VALUE].match /(.*)!$/
-        m[1]
-      else
-        null
-
-    popCaller = =>
-      caller = []
-      level  = 0
-      while token = getToken()
-        tag = token[TAG]
-        break   if !IDENT[tag] and level is 0
-        ++level if PARENS_END[tag]
-        --level if PARENS_START[tag]
-        async_tokens.pop()
-        caller.unshift token
-      caller
-
-    popParams = =>
-      params = []
-      level  = 0
-      if getTag() is ']'
-        while token = getToken()
-          tag = token[TAG]
-          ++level if PARENS_START[tag]
-          --level if PARENS_END[tag]
-          async_tokens.pop()
-          params.unshift token
-          break   if level == 0
-        params
-      else
-        while token = getToken()
-          tag = token[TAG]
-          break unless IDENT[tag] or tag is ','
-          async_tokens.pop()
-          params.unshift token
-        params
-      params
-
-    pushTokens = (tokens)=>
-      for token in tokens
-        async_tokens.push token
-      @
-
-    openCallback  = (params) =>
-      if params.length and params[0][0] is '['
-        # Multi parameters
-        params[0]                 = ['PARAM_START', '(', line]
-        params[params.length - 1] = ['PARAM_END',   ')', line]
-      else
-        params.unshift ['PARAM_START', '(', line]
-        params.push    ['PARAM_END',   ')', line]
-
-      if getTag() isnt 'CALL_START'
-        async_tokens.push [',', ',', line]
-
-      #pushTokens params
-
-      # replace identifier name to template name
-      # assign template to identifier name
-      # to make any 
-
-      params = params.slice(1, params.length-1)
-
-      # extract params to
-      # [
-      #   [identifier, assignment, ...]
-      #   ...
-      # ]
-      param_blocks =[]
-      assignment = []
-      param = comma
-      ident = []
-      level = 0
-      is_ident = true
-      push_param = ->
-        param_block = []
-        param_block.push ident
-        param_block.push param for param in assignment
-        param_block.push comma if comma
-        param_blocks.push param_block
-      while param = params.shift()
-        tag = param[TAG]
-        ++level if PARENS_END[tag]
-        --level if PARENS_START[tag]
-        if level is 0
-          if tag is ','
-            comma = param
-            push_param()
-            comma = null
-            ident = []
-            assignment = []
-            is_ident = true
-          else
-            unless IDENT[tag]
-              is_ident = false
-            if is_ident
-              ident.push param
-            else
-              assignment.push param
-      push_param() if ident.length
-      params = param_blocks
-
-      replacements = []
-      async_tokens.push ['PARAM_START', '(', line]
-      async_id = 0
-      for param in params
-        len = param[0].length
-        ident_name = ''
-        for i in [len-1..0]
-          if param[0][i][0] is 'IDENTIFIER'
-            ident_name = param[0][i][1]
-        new_ident = ['IDENTIFIER', '_$$_' +ident_name, line]
-        replacements.push [new_ident, param[0]]
-        param[0] = new_ident
-        pushTokens param
-
-      async_tokens.push ['PARAM_END',   ')', line]
-
-      async_tokens.push ['=>', '=>', line]
-      async_tokens.push ['INDENT', 2, line]
-      for replacement in replacements
-        pushTokens replacement[1]
-        pushTokens  [
-          ['=', '='],
-        ]
-        pushTokens [
-          replacement[0],
-          ['TERMINATOR', "\n"]
-        ]
-      @
-
-    closeCallback = =>
-      status = stack.pop()
-      if status is 'PARAM_END'
-        async_tokens.pop() if getTag() is 'TERMINATOR'
-        async_tokens.push ['OUTDENT',  2,   line]
-        async_tokens.push ['CALL_END', ')', line]
-        true
-      else
-        stack.push status
-        false
-
-    setLine = (new_line) =>
-      line = new_line
-
-    raise = (message) =>
-      throw new Error("Parse error on line #{line}: Async #{message}")
-
-    {
-      TAG, VALUE, LINE, PARENS_START, PARENS_END, IDENT, ASYNC_START, ASYNC_END,
-      getToken, getTag, getAsync, 
-      popCaller, popParams, pushTokens, openCallback, closeCallback,
-      raise, setLine
-    }
-
-  async_id: ->
-    @async_id_num = 0 unless @async_id_num?
-    "_asfn" + @async_id_num++
-
-
-  rewriteAsyncCondition: ->
-    stack        = []
-    async_tokens = []
-    line         = 0
-
-    {getAsync} = @asyncFunctions()
-    {shiftTokensUntil, shiftConditionBlock, shiftNextBlockGreedy, tag, smartPush} = @toffeeHelpers()
-
-    while token = @tokens.shift()
-      line = token[LINE]
-      if (name = getAsync token) and name in ['if', 'unless']
-        token[VALUE] = name
-        token[TAG]   = 'IF'
-
-        condition = shiftConditionBlock(@tokens)
-        next      = shiftNextBlockGreedy(@tokens)
-        old_tokens = @tokens
-        @tokens = next
-        @rewriteAsyncCondition()
-        next = @tokens
-        @tokens = old_tokens
-
-        condition.unshift token
-        func_name = @async_id()
-
-        next_tokens = [
-          ["IDENTIFIER", func_name, line],
-          ["=", "=", line]
-          ["=>", "=>", line],
-          ["INDENT", 2, line],
-        ]
-
-        next.shift() if tag(next, 0) is 'TERMINATOR'
-        next.pop()   if tag(next, -1) is 'TERMINATOR'
-        smartPush next_tokens,
-          next,
-          ["OUTDENT", 2, line],
-          ["TERMINATOR", "\n", line]
-
-        call_func = [
-          ["TERMINATOR", "\n", line]
-          ["IDENTIFIER", func_name, line],
-          ["CALL_START", "(", line],
-          [')', ')', line]
-        ]
-
-        outdent = condition.pop()
-        smartPush condition,
-          call_func
-          outdent
-
-        old_tokens = @tokens
-        @tokens = condition
-        @rewriteAsyncCondition()
-        condition = @tokens
-        @tokens = old_tokens
-
-        smartPush async_tokens,
-          next_tokens,
-          condition,
-          ['ELSE', 'else', line], 
-          ["INDENT", 2, line],
-          call_func,
-          ["OUTDENT", 2, line]
-      else
-        async_tokens.push token
-
-    @tokens = async_tokens
-
-  rewriteAsynchronous: ->
-    stack        = []
-    async_tokens = []
-    line         = 0
-
-    {
-      getToken, getTag, getAsync, 
-      popCaller, popParams, pushTokens, openCallback, closeCallback,
-      raise, setLine
-    } = @asyncFunctions(stack, async_tokens)
-
-    while token = @tokens.shift()
-      line = setLine(token[LINE])
-      if name = getAsync token
-        async_tokens.push token
-        token[VALUE] = name
-        caller = popCaller()
-        if getTag() is '='
-          # async has parameters
-          # remove '=' which is unnesscary
-          async_tokens.pop()
-          params = popParams()
-        else
-          params = []
-        pushTokens caller
-        stack.push params
-        stack.push 'PARAM_START'
-
-        # async always a function
-        if @tokens[0] and @tokens[0][0] is 'CALL_START'
-          @tokens.shift()
-        else
-          @tokens.unshift ['CALL_END',   ')', line]
-        async_tokens.push ['CALL_START', '(', line]
-      else
-        tag = token[TAG]
-        # Modify __asnyc_end
-        if tag is 'IDENTIFIER' and token[VALUE] is '__async_end'
-          tag = 'ASYNC_END'
-
-        if ASYNC_END[tag]
-            continue while closeCallback()
-            status = stack.pop()
-            if status is 'PARAM_START'
-              # insert the callback
-              # CALL_END will be moved to another CALL_END, OUTDENT or ASYNC_END
-              params = stack.pop()
-              openCallback(params)
-              stack.push 'PARAM_END'
-              continue
-
-        if ASYNC_START[tag]
-          stack.push tag
-
-        switch tag
-          when 'TERMINATOR'
-            if getTag() isnt 'INDENT'
-              async_tokens.push token
-          when 'ASYNC_END'
-            # ignore ASYNC_END
-          else
-            async_tokens.push token
-
-    continue while closeCallback()
-    @tokens = async_tokens
-
-  
-  # Extending
-  new_caller_id: ->
-    @caller_id_num = 0 unless @caller_id_num?
-    "_asid" + @caller_id_num++
-
-  extend: (force_complex = false)->
-    TAG  = 0
-    VALUE = 1
-    LINE = 2
-    new_tokens = []
-    {smartPush, getTag, getToken, popCaller, shiftNextBlock, shiftParam, shiftBlockTokens, popBlockTokensUntil} = @toffeeHelpers()
-    while token = @tokens[0]
-      if token[0] is '{' and getTag(new_tokens) is '.'
-        params =  shiftNextBlock(@tokens)
-        comma = new_tokens.pop()
-        caller = popBlockTokensUntil new_tokens, (token)->
-          !POP_IDENT[token[TAG]]
-        , false
-        if force_complex and new_tokens.length == 0
-          complex = true
-        else if new_tokens.length == 0 || getTag(new_tokens) in ['TERMINATOR', 'INDENT']
-          complex = false
-        else
-          complex = true
-
-        lineno = token[LINE]
-        # remone '{' and '}'
-        params.pop()
-        params.shift()
-
-        if getTag(params, 0) is 'INDENT'
-          params.pop()
-          params.shift()
-
-        new_params = []
-        while params.length
-          key = shiftBlockTokens params, [',', ':'], false
-          colon = params.shift()
-          if colon and colon[TAG] is ':'
-            if params[0][TAG] == 'PARAM_START'
-              func_params = shiftBlockTokens params, ['PARAM_END']
-            else
-              func_params = []
-            value = shiftParam(params)
-            value = func_params.concat(value)
-            comma = params.shift()
-          else
-            comma = colon
-            colon = [':', ':', key[TAG]]
-            value = [key[TAG], key[VALUE], key[LINE]]
-
-          old_tokens = @tokens
-          @tokens    = value
-          @extend(true)
-          value      = @tokens
-          @tokens    = old_tokens
-
-          new_params.push [key, value]
-
-        if complex
-          smartPush new_tokens, 
-            ['IDENTIFIER', '__ts_extend', lineno],
-            ['CALL_START', '(', lineno],
-            caller,
-            [',', ',', lineno],
-
-          for param in new_params
-            [key, value] = param
-            # convert IDENTIFIER to String use for extending
-            if key.length is 1
-              key = key[0]
-            if key[TAG] is 'IDENTIFIER'
-              key = [ 'STRING',JSON.stringify(key[VALUE]), key[LINE] ]
-
-            smartPush new_tokens,
-              key,
-              [',', ',', key[LINE]],
-              value
-              [',', ',', key[LINE]],
-
-          # remove last ','
-          new_tokens.pop()
-          smartPush new_tokens,
-            ['CALL_END', ')', lineno]
-
-        else
-          # the caller is complex expression
-          if caller.length > 1 and new_params.length > 1
-            lineno = caller[0][LINE]
-            new_caller = ['IDENTIFIER', @new_caller_id(), lineno]
-            smartPush new_tokens,
-              new_caller,
-              ['=', '=', lineno],
-              caller,
-              ['TERMINATOR', "\n", lineno]
-            caller = new_caller
-
-          for param in new_params
-            [key, value] = param
-            lineno = key[LINE]
-            if key.length == 1 and key[0][TAG] is 'IDENTIFIER'
-              key = [
-                ['.', '.', lineno],
-                key[0]
-              ]
-            else
-              # the key is complex use [...] instead of .
-              key.unshift ['INDEX_START', '[', lineno]
-              key.push ['INDEX_END', ']', lineno]
-
-            smartPush new_tokens,
-              caller,
-              key,
-              ['=', '=', lineno],
-              value,
-              ['TERMINATOR', "\n", lineno]
-
-      else
-        new_tokens.push @tokens.shift()
-
-    @tokens = new_tokens
-
-
   # Generate the indentation tokens, based on another token on the same line.
-  indentation: (token, implicit = no) ->
-    indent  = ['INDENT', 2, token[2]]
-    outdent = ['OUTDENT', 2, token[2]]
+  indentation: (implicit = no) ->
+    indent  = ['INDENT', 2]
+    outdent = ['OUTDENT', 2]
     indent.generated = outdent.generated = yes if implicit
+    indent.explicit = outdent.explicit = yes if not implicit
     [indent, outdent]
 
-  # Create a generated token: one that exists due to a use of implicit syntax.
-  generate: (tag, value, line) ->
-    tok = [tag, value, line]
-    tok.generated = yes
-    tok
+  generate: generate
 
   # Look up a tag by token index.
   tag: (i) -> @tokens[i]?[0]
@@ -868,13 +482,13 @@ for [left, rite] in BALANCED_PAIRS
 EXPRESSION_CLOSE = ['CATCH', 'WHEN', 'ELSE', 'FINALLY'].concat EXPRESSION_END
 
 # Tokens that, if followed by an `IMPLICIT_CALL`, indicate a function invocation.
-IMPLICIT_FUNC    = ['IDENTIFIER', 'SUPER', ')', 'CALL_END', ']', 'INDEX_END', '@', 'THIS']
+IMPLICIT_FUNC    = ['IDENTIFIER', 'SUPER', ')', 'CALL_END', ']', 'INDEX_END', '@', 'THIS', 'RETURN', 'DEFER', 'ASYNC']
 
 # If preceded by an `IMPLICIT_FUNC`, indicates a function invocation.
 IMPLICIT_CALL    = [
   'IDENTIFIER', 'NUMBER', 'STRING', 'JS', 'REGEX', 'NEW', 'PARAM_START', 'CLASS'
   'IF', 'TRY', 'SWITCH', 'THIS', 'BOOL', 'NULL', 'UNDEFINED', 'UNARY', 'SUPER'
-  '@', '->', '=>', '[', '(', '{', '--', '++'
+  'THROW', '@', '->', '=>', '[', '(', '{', '--', '++', 'DEFER', 'ASYNC'
 ]
 
 IMPLICIT_UNSPACED_CALL = ['+', '-']
@@ -883,7 +497,8 @@ IMPLICIT_UNSPACED_CALL = ['+', '-']
 IMPLICIT_BLOCK   = ['->', '=>', '{', '[', ',']
 
 # Tokens that always mark the end of an implicit call for single-liners.
-IMPLICIT_END     = ['POST_IF', 'FOR', 'WHILE', 'UNTIL', 'WHEN', 'BY', 'LOOP', 'TERMINATOR']
+IMPLICIT_END     = ['POST_IF', 'FOR', 'WHILE', 'UNTIL', 'WHEN', 'BY',
+  'LOOP', 'TERMINATOR']
 
 # Single-line flavors of block expressions that have unclosed endings.
 # The grammar can't disambiguate them, so we insert the implicit indentation.
@@ -892,16 +507,3 @@ SINGLE_CLOSERS   = ['TERMINATOR', 'CATCH', 'FINALLY', 'ELSE', 'OUTDENT', 'LEADIN
 
 # Tokens that end a line.
 LINEBREAKS       = ['TERMINATOR', 'INDENT', 'OUTDENT']
-
-
-PARENS_START = {'[', '(', 'CALL_START', '{', 'INDEX_START'}
-PARENS_END   = {']', ')', 'CALL_END',   '}', 'INDEX_END'}
-IDENT        = {'IDENTIFIER', '.', '?.', '::', '@'}
-# ident use for greedy pop
-POP_IDENT = {'IDENTIFIER', '.', '?.', '::', '@', '[', '(', '{', 'CALL_START', 'INDENT',  'INDEX_START'}
-ASYNC_START  = {'[', '(', '{', 'CALL_START', 'INDENT',  'INDEX_START'}
-ASYNC_END    = {']', ')', '}', 'CALL_END',   'OUTDENT', 'INDEX_END', 'ASYNC_END'}
-
-TAG   = 0
-VALUE = 1
-LINE  = 2

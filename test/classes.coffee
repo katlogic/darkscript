@@ -117,24 +117,23 @@ test "basic classes, again, but in the manual prototype style", ->
   ok (new ThirdChild)['func-func']('thing') is 'dynamic-thing'
 
 
-test "super with plain ol' functions as the original constructors", ->
+test "super with plain ol' prototypes", ->
 
-TopClass = (arg) ->
-  @prop = 'top-' + arg
-  this
+  TopClass = ->
+  TopClass::func = (arg) ->
+    'top-' + arg
 
-SuperClass = (arg) ->
-  super 'super-' + arg
-  this
+  SuperClass = ->
+  SuperClass extends TopClass
+  SuperClass::func = (arg) ->
+    super 'super-' + arg
 
-SubClass = ->
-  super 'sub'
-  this
+  SubClass = ->
+  SubClass extends SuperClass
+  SubClass::func = ->
+    super 'sub'
 
-SuperClass extends TopClass
-SubClass extends SuperClass
-
-ok (new SubClass).prop is 'top-super-sub'
+  eq (new SubClass).func(), 'top-super-sub'
 
 
 test "'@' referring to the current instance, and not being coerced into a call", ->
@@ -313,7 +312,7 @@ test "classes with value'd constructors", ->
   eq (new Two).value, 2
 
 
-test "exectuable class bodies", ->
+test "executable class bodies", ->
 
   class A
     if true
@@ -325,6 +324,17 @@ test "exectuable class bodies", ->
 
   eq a.b, 'b'
   eq a.c, undefined
+
+
+test "#2502: parenthesizing inner object values", ->
+
+  class A
+    category:  (type: 'string')
+    sections:  (type: 'number', default: 0)
+
+  eq (new A).category.type, 'string'
+
+  eq (new A).sections.default, 0
 
 
 test "mild metaprogramming", ->
@@ -676,3 +686,96 @@ test "#2052: classes should work in strict mode", ->
       class A
   catch e
     ok no
+
+test "#2630: class bodies can't reference arguments", ->
+  throws ->
+    CoffeeScript.compile('class Test then arguments')
+
+test "#2319: fn class n extends o.p [INDENT] x = 123", ->
+  first = ->
+
+  base = onebase: ->
+
+  first class OneKeeper extends base.onebase
+    one = 1
+    one: -> one
+
+  eq new OneKeeper().one(), 1
+
+
+test "#2599: other typed constructors should be inherited", ->
+  class Base
+    constructor: -> return {}
+
+  class Derived extends Base
+
+  ok (new Derived) not instanceof Derived
+  ok (new Derived) not instanceof Base
+  ok (new Base) not instanceof Base
+
+test "#2359: extending native objects that use other typed constructors requires defining a constructor", ->
+  class BrokenArray extends Array
+    method: -> 'no one will call me'
+
+  brokenArray = new BrokenArray
+  ok brokenArray not instanceof BrokenArray
+  ok typeof brokenArray.method is 'undefined'
+
+  class WorkingArray extends Array
+    constructor: -> super
+    method: -> 'yes!'
+
+  workingArray = new WorkingArray
+  ok workingArray instanceof WorkingArray
+  eq 'yes!', workingArray.method()
+
+
+test "#2782: non-alphanumeric-named bound functions", ->
+  class A
+    'b:c': =>
+      'd'
+
+  eq (new A)['b:c'](), 'd'
+
+
+test "#2781: overriding bound functions", ->
+  class A
+    a: ->
+        @b()
+    b: =>
+        1
+
+  class B extends A
+    b: =>
+        2
+
+  b = (new A).b
+  eq b(), 1
+
+  b = (new B).b
+  eq b(), 2
+
+
+test "#2791: bound function with destructured argument", ->
+  class Foo
+    method: ({a}) => 'Bar'
+
+  eq (new Foo).method({a: 'Bar'}), 'Bar'
+
+
+test "#2796: ditto, ditto, ditto", ->
+  answer = null
+
+  outsideMethod = (func) ->
+    func.call message: 'wrong!'
+
+  class Base
+    constructor: ->
+      @message = 'right!'
+      outsideMethod @echo
+
+    echo: =>
+      answer = @message
+
+  new Base
+  eq answer, 'right!'
