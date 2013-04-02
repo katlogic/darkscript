@@ -20,7 +20,7 @@ describe('logical', function() {
     return code_eq("a &&= b!", "var a;\n(function(_$cb$_0) {\n	if (!a) {\n		_$cb$_0(a);\n	} else {\n		b(function() {\n			_$cb$_0(a = arguments[0]);\n		});\n	}\n})(function(_$$_1) {\n	return _$$_1;\n});");
   });
   it('?=', function() {
-    return code_eq("a ?= b!", "var a;\n(function(_$cb$_0) {\n	if (a != null) {\n		_$cb$_0(a);\n	} else {\n		b(function() {\n			_$cb$_0(a = arguments[0]);\n		});\n	}\n})(function(_$$_1) {\n	return _$$_1;\n});");
+    return code_eq("a ?= b!", "var a,\n	_this = this;\n\n(function(_$cb$_0) {\n	if (typeof a !== \"undefined\" && a !== null) {\n		_$cb$_0(a);\n	} else {\n		b(function() {\n			_$cb$_0(a = arguments[0]);\n		})\n	}\n})(function(_$$_1) {\n	return _$$_1;\n});");
   });
   return it('complex', function() {
     return code_eq("x = a! && b! || c! && d!", "var x;\n(function(_$cb$_0) {\n	(function(_$cb$_9) {\n		(function(_$cb$_6) {\n			(function(_$cb$_3) {\n				a(function(_$$_1) {\n					if (!_$$_1) {\n						_$cb$_3(_$$_1);\n					} else {\n						b(function(_$$_2) {\n							_$cb$_3(_$$_2);\n						});\n					}\n				});\n			})(function(_$$_4) {\n				if (_$$_4) {\n					_$cb$_6(_$$_4);\n				} else {\n					c(function(_$$_5) {\n						_$cb$_6(_$$_5);\n					});\n				}\n			});\n		})(function(_$$_7) {\n			if (!_$$_7) {\n				_$cb$_9(_$$_7);\n			} else {\n				d(function(_$$_8) {\n					_$cb$_9(_$$_8);\n				});\n			}\n		});\n	})(function(_$$_10) {\n		_$cb$_0(_$$_10);\n	});\n})(function() {\n	return x = arguments[0];\n});");

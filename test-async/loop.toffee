@@ -7,22 +7,25 @@ describe 'for', ->
 				x!
 			null
 		""", """
-			(function(cb) {
-				var i, _body, _i, _step;
+			var i,
+				_this = this;
+
+			(function(_$cb$_0) {
+				var _body, _i, _step;
 				i = _i = 1;
 				_step = function() {
 					i = ++_i;
 					_body();
-				}
+				};
 				_body = function() {
 					if (_i <= 3) {
-						x(function(v) {
-							_step(v);
+						x(function(_$$_1) {
+							_step(_$$_1);
 						});
 					} else {
-						cb();
+						_$cb$_0();
 					}
-				}
+				};
 				_body();
 			})(function() {
 				return null;
@@ -35,9 +38,9 @@ describe 'for', ->
 				x!
 			null
 		""", """
-			var xs;
+			var i, xs;
 			(function(cb) {
-				var i, res, _body, _done, _i, _step;
+				var res, _body, _done, _i, _step;
 				res = []
 				i = _i = 1;
 				_step = function() {
@@ -69,8 +72,9 @@ describe 'for', ->
 				x!
 			null
 		""", """
+			var i;
 			(function(cb) {
-				var i, _body, _i, _step;
+				var _body, _i, _step;
 				i = _i = 1;
 				_step = function() {
 					i = ++_i;
@@ -154,7 +158,7 @@ describe 'while', ->
 				x!
 			null
 		""", """
-			var _$$_0, _$$_1,
+			var k, v, _$$_0, _$$_1,
 				__hasProp = {}.hasOwnProperty,
 			_this = this;
 
@@ -169,7 +173,7 @@ describe 'while', ->
 			})();
 
 			(function(_$cb$_2) {
-				var k, v, _body, _i, _len, _step;
+				var _body, _i, _len, _step;
 				_i = 0, _len = _$$_1.length;
 				_step = function() {
 					_i++;

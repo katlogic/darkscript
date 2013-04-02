@@ -221,3 +221,28 @@ describe 'switch', ->
 				return null;
 			});
 		"""
+
+	it 'ends with if', ->
+		code_eq """
+			(autocb) ->
+				if a
+					x!
+					if e
+						return a
+		""", """
+			(function(autocb) {
+				var _this = this;
+				if (a) {
+					x(function() {
+						if (e) {
+							return autocb(a);
+						} else {
+							autocb();
+						}
+					});
+				} else {
+					autocb();
+				}
+			});
+		"""
+

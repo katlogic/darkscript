@@ -13,6 +13,7 @@ Error.stackTraceLimit = Infinity
 addLocationDataFn, locationDataToString, throwSyntaxError} = require './helpers'
 
 $verbose = false
+$flows   = null
 puts = (v) ->
   unless $verbose
     return
@@ -160,8 +161,6 @@ exports.Base = class Base
       tree += " [#{v}]"
     if @omit_return
       tree += " [omit]"
-    if @vars && @vars.length
-      tree += " [vars #{@vars.join(',')}]"
     tree += '?' if @soak
     @eachChild (node) -> tree += node.toString idt + TAB
     tree
@@ -256,8 +255,6 @@ exports.Base = class Base
         if self instanceof Block
           Base.scopes.push self
           Base.scope = self
-        else if !(parent instanceof Obj) && self instanceof Assign && names = self?.variable.get_names()
-          Base.scope.vars.push names...
         self.autocb ?= parent.autocb
         if self instanceof Code
           self.async = false
@@ -333,7 +330,6 @@ exports.Base = class Base
 exports.Block = class Block extends Base
   constructor: (nodes) ->
     @expressions = compact flatten nodes or []
-    @vars = []  # the vars defined under this Block
 
   children: ['expressions']
 
@@ -402,9 +398,6 @@ exports.Block = class Block extends Base
     compiledNodes = []
     nodes = []
 
-    for v in @vars
-      o.scope.find(v)
-
     for node, index in @expressions
       node = node.unwrapAll()
       node = (node.unfoldSoak(o) or node)
@@ -446,7 +439,7 @@ exports.Block = class Block extends Base
         else
           next_name = o.scope.freeVariable('fn')
           next = new Assign(new Literal(next_name), next_code)
-          node.flow = o.flows.clone({next: next_name})
+          node.flow = $flows.clone({next: next_name})
           dest.push next
       dest.push node
     @expressions = dest
@@ -494,7 +487,7 @@ exports.Block = class Block extends Base
     o.level   = LEVEL_TOP
     @spaced   = yes
     o.scope   = new Scope null, this, null
-    o.flows   = new Flows()
+    $flows   = new Flows(o.scope)
     # Mark given local variables in the root scope as parameters so they don't
     # end up being declared on this block.
     o.scope.parameter name for name in o.locals or []
@@ -626,14 +619,14 @@ exports.Literal = class Literal extends Base
     return this if @value is 'continue' and not o?.loop
 
   compileNode: (o) ->
-    flow = o.flows.last()
+    flow = $flows.last()
     if @isStatement() && fn = flow[@value]
       # replace break, continue
-      o.flows.push()
+      $flows.push()
       answer = new Return(
         [new Call(new Literal(fn))]
       ).compileToFragments(o, LEVEL_TOP)
-      o.flows.pop()
+      $flows.pop()
       return answer
 
     code = if @value is 'this'
@@ -689,7 +682,7 @@ exports.Return = class Return extends Base
   compileNode: (o) ->
     expr = null
     answer = []
-    flow = o.flows.last()
+    flow = $flows.last()
 
     if @generated && flow.next
       expr = new Call new Literal(flow.next), @expression
@@ -1470,6 +1463,8 @@ exports.Assign = class Assign extends Base
   # we've been assigned to, for correct internal references. If the variable
   # has not been seen yet within the current scope, declare it.
   compileNode: (o) ->
+    rscope = $flows.last().scope
+    scope = o.scope
     if isValue = @variable instanceof Value
       return @compilePatternMatch o if @variable.isArray() or @variable.isObject()
       return @compileSplice       o if @variable.isSplice()
@@ -1482,9 +1477,12 @@ exports.Assign = class Assign extends Base
         @variable.error "\"#{@variable.compile o}\" cannot be assigned"
       unless varBase.hasProperties?()
         if @param
-          o.scope.add name, 'var'
+          scope.add name, 'var'
         else
-          o.scope.find name
+          if @moved
+            scope.find name
+          else
+            rscope.find name
     if @value instanceof Code and match = METHOD_DEF.exec name
       @value.klass = match[1] if match[1]
       @value.name  = match[2] ? match[3] ? match[4] ? match[5]
@@ -1687,15 +1685,14 @@ exports.Code = class Code extends Base
   # arrow, generates a wrapper that saves the current value of `this` through
   # a closure.
   compileNode: (o) ->
-    flow = if @cross then o.flows.clone(@flow) else @flow || {}
-    o.flows.push(flow)
-
-    o.sharedScope ||= @async
     o.scope         = new Scope o.scope, @body, this
     o.scope.shared  = del(o, 'sharedScope')
     o.indent        += TAB
     delete o.bare
     delete o.isExistentialEquals
+    flow = if @cross then $flows.clone(@flow) else @flow || {}
+    flow.scope = o.scope unless @cross
+    $flows.push(flow)
     params = []
     exprs  = []
     @eachParamName (name) -> # this step must be performed before the others
@@ -1729,7 +1726,7 @@ exports.Code = class Code extends Base
     @eachParamName (name, node) ->
       node.error "multiple parameters named '#{name}'" if name in uniqs
       uniqs.push name
-    @body.makeReturn() unless (wasEmpty or @noReturn) && !o.flows.last().next
+    @body.makeReturn() unless (wasEmpty or @noReturn) && !$flows.last().next
     if @bound
       if o.scope.parent.method?.bound
         @bound = @context = o.scope.parent.method.context
@@ -1747,7 +1744,7 @@ exports.Code = class Code extends Base
     answer = answer.concat(@makeCode("\n"), @body.compileWithDeclarations(o), @makeCode("\n#{@tab}")) unless @body.isEmpty()
     answer.push @makeCode '}'
 
-    o.flows.pop()
+    $flows.pop()
     return [@makeCode(@tab), answer...] if @ctor
     if @front or (o.level >= LEVEL_ACCESS) then @wrapInBraces answer else answer
 
@@ -1948,8 +1945,8 @@ exports.While = class While extends Base
     answer
 
   asyncCompileNode: (o, info) ->
-    o.flows.push @flow if @flow
-    flow = o.flows.last()
+    $flows.push @flow if @flow
+    flow = $flows.last()
     answer = [@makeCode @tab]
     names = {
       body: o.scope.freeVariable('body')
@@ -1983,6 +1980,7 @@ exports.While = class While extends Base
         new Literal(names.done),
         new Code([], new Block(done_body), 'boundfunc', flow)
       )
+      done_fn.moved = true
 
     if @results_id
       o.scope.find(@results_id)
@@ -2003,6 +2001,7 @@ exports.While = class While extends Base
         ]))
       )
       ret.omit_return = true
+      step_fn.moved = true
       blocks.push step_fn
     else
       step_name = names.body
@@ -2022,8 +2021,10 @@ exports.While = class While extends Base
         )
       ]), 'boundfunc', {next: step_name, return: flow.return, break: done, continue: step_name})
     )
+    body_fn.moved = true
 
     code.async = true
+    code.cross = true
     ret.omit_return = true
     blocks.push body_fn
 
@@ -2035,7 +2036,7 @@ exports.While = class While extends Base
     blocks.push call_body
 
     answer = blocks.compileNode(o)
-    o.flows.pop() if @flow
+    $flows.pop() if @flow
     return answer
 
   move: (dest, results) ->
@@ -2243,7 +2244,7 @@ exports.Op = class Op extends Base
     ).addElse(elseBodyBlock)
     body_block = new Block(body)
     body_block.move()
-    Base.move_ac(dest, body_block, false)
+    Base.move_ac(dest, body_block, true)
 
   move_or: (dest, fn) ->
     # first || second
@@ -2450,7 +2451,7 @@ exports.For = class For extends While
   # comprehensions. Some of the generated code can be shared in common, and
   # some cannot.
   compileNode: (o) ->
-    flow = o.flows.last()
+    flow = $flows.last()
     info = {}
 
     body      = Block.wrap [@body]
@@ -2459,11 +2460,12 @@ exports.For = class For extends While
     if @results_id?
       @returns  = false
     source    = if @range then @source.base else @source
+    rscope     = flow.scope
     scope     = o.scope
     name      = @name  and (@name.compile o, LEVEL_LIST)
     index     = @index and (@index.compile o, LEVEL_LIST)
-    scope.find(name)  if name and not @pattern
-    scope.find(index) if index
+    rscope.find(name)  if name and not @pattern
+    rscope.find(index) if index
     rvar      = scope.freeVariable 'results' if @returns
     ivar      = (@object and index) or scope.freeVariable 'i'
     kvar      = (@range and name) or index or ivar
@@ -2639,7 +2641,7 @@ exports.Switch = class Switch extends Base
     this
 
   compileNode: (o) ->
-    flow = o.flows.last()
+    flow = $flows.last()
 
     idt1 = o.indent + TAB
     idt2 = o.indent = idt1 + TAB
@@ -2709,15 +2711,16 @@ exports.If = class If extends Base
   jumps: (o) -> @body.jumps(o) or @elseBody?.jumps(o)
 
   compileNode: (o) ->
-    flow = o.flows.clone(@flow)
-    o.flows.push flow
+    flow = $flows.clone(@flow)
+    $flows.push flow
     @asyncCompileNode(o)
     answer = if @isStatement o then @compileStatement o else @compileExpression o
-    o.flows.pop()
+    $flows.pop()
     answer
 
   makeReturn: (res) ->
     @elseBody  or= Block.wrap [new Literal 'void 0'] if res
+    @elseBody or= new Block([]) if $flows.last().next
     @body     and= Block.wrap [@body.makeReturn res]
     @elseBody and= Block.wrap [@elseBody.makeReturn res]
     this
@@ -2763,7 +2766,7 @@ exports.If = class If extends Base
     @
 
   move: (dest, next_body = null) ->
-    return unless @async
+    return @ unless @async
     if @autocb || next_body
       @elseBody ?= new Block()
 
@@ -2850,8 +2853,8 @@ exports.AsyncCall = class AsyncCall extends Call
 
 
 class Flows
-  constructor: ->
-    @flows = [{}]
+  constructor: (scope) ->
+    @flows = [{scope}]
 
   push: (flow = {}) ->
     @flows.push flow

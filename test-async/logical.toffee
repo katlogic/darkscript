@@ -95,17 +95,20 @@ describe 'logical', ->
 		"""
 
 	it '?=', ->
+		# A has been defined already, a ? should be compile to a != null
 		code_eq """
 			a ?= b!
 		""", """
-			var a;
+			var a,
+				_this = this;
+
 			(function(_$cb$_0) {
-				if (a != null) {
+				if (typeof a !== "undefined" && a !== null) {
 					_$cb$_0(a);
 				} else {
 					b(function() {
 						_$cb$_0(a = arguments[0]);
-					});
+					})
 				}
 			})(function(_$$_1) {
 				return _$$_1;

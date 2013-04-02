@@ -34,7 +34,10 @@ describe('if + autocb', function() {
 });
 
 describe('switch', function() {
-  return it('simple', function() {
+  it('simple', function() {
     return code_eq("switch x\n	when 'a'\n		a()\n	when 'b'\n		b!\n	else\n		c!\nnull", "(function(_$cb$_0) {\n	switch (x) {\n		case 'a':\n			_$cb$_0(a());\n			break;\n		case 'b':\n			b(function(_$$_1) {\n				_$cb$_0(_$$_1);\n			});\n			break;\n		default:\n			c(function(_$$_2) {\n				_$cb$_0(_$$_2);\n			});\n	}\n})(function() {\n	return null;\n});");
+  });
+  return it('ends with if', function() {
+    return code_eq("(autocb) ->\n	if a\n		x!\n		if e\n			return a", "(function(autocb) {\n	var _this = this;\n	if (a) {\n		x(function() {\n			if (e) {\n				return autocb(a);\n			} else {\n				autocb();\n			}\n		});\n	} else {\n		autocb();\n	}\n});");
   });
 });
