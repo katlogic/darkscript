@@ -64,11 +64,11 @@ Support For In, For Of, While with guard `when`
 <table width=100%><tr>
 	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
   a!</pre></td>
-	<td width=50% valign=top><pre>var xs,
+	<td width=50% valign=top><pre>var i, xs,
   _this = this;
 
 (function(_$cb$_0) {
-  var i, _$res$_1, _body, _done, _i, _step;
+  var _$res$_1, _body, _done, _i, _step;
   _$res$_1 = [];
   i = _i = 1;
   _step = function() {
@@ -124,7 +124,7 @@ Support For In, For Of, While with guard `when`
   a: a
   b: b!
   c: c</pre></td>
-	<td width=50% valign=top><pre>var A, a, b, c,
+	<td width=50% valign=top><pre>var A,
   _this = this;
 
 (function(_$cb$_0) {
