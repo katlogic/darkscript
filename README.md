@@ -18,6 +18,7 @@ ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
 Code Examples
 -------------
 Left: ToffeeScript
+
 Right: Generated JavaScript
 
 ### Basic
@@ -61,7 +62,7 @@ if (i) {
 ### Loop
 Support For In, For Of, While with guard `when`
 <table width=100%><tr>
-	<td width=50% valign=top><pre>xs = for i in [1..3] when i > 2
+	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
   a!</pre></td>
 	<td width=50% valign=top><pre>var xs,
   _this = this;
@@ -75,8 +76,8 @@ Support For In, For Of, While with guard `when`
     _body();
   };
   _body = function() {
-    if (_i <= 3) {
-      if (i > 2) {
+    if (_i &lt;= 3) {
+      if (i &gt; 2) {
         a(function(_$$_2) {
           _step(_$res$_1.push(_$$_2));
         });
@@ -169,7 +170,7 @@ console.log x</pre></td>
 </tr></table>
 ### Auto Callback
 <table width=100%><tr>
-	<td width=50% valign=top><pre>a = (autocb) -> return 3</pre></td>
+	<td width=50% valign=top><pre>a = (autocb) -&gt; return 3</pre></td>
 	<td width=50% valign=top><pre>var a;
 
 a = function(autocb) {
@@ -178,7 +179,7 @@ a = function(autocb) {
 </tr></table>
 Return Multiple Values
 <table width=100%><tr>
-	<td width=50% valign=top><pre>a = (autocb) -> return null, 3</pre></td>
+	<td width=50% valign=top><pre>a = (autocb) -&gt; return null, 3</pre></td>
 	<td width=50% valign=top><pre>var a;
 
 a = function(autocb) {
