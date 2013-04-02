@@ -105,6 +105,26 @@ describe 'if', ->
 			}
 		"""
 
+	it 'if with async condition', ->
+		# Need improve
+		code_eq """
+			if e = a!
+				b
+		""", """
+			var e,
+				_this = this;
+
+			(function(_$cb$_1) {
+				a(function() {
+					_$cb$_1(e = arguments[0]);
+				});
+			})(function(_$$_0) {
+				if (_$$_0) {
+					return b;
+				}
+			});
+		"""
+
 describe 'if + autocb', ->
 	it 'simple', ->
 		code_eq """

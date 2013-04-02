@@ -988,6 +988,8 @@ exports.Call = class Call extends Base
     answer = answer.concat @makeCode(".apply(#{ref}, "), splatArgs, @makeCode(")")
 
   move: (dest) ->
+    return @ if @moved
+    @moved = true
     return @ unless @async
     @variable = @variable.move(dest)
     Base.move_arr(dest, @args)
@@ -1655,14 +1657,22 @@ exports.Code = class Code extends Base
   constructor: (params, body, tag, @flow) ->
     @params  = params or []
     @body    = body or new Block
+    if m = tag?.match(/autocb(\w+)/)
+      @autocb = true
+      tag = m[1]
+      cb = uid('cb')
+      params.push(new Param new Literal cb)
+      @flow = {next: cb, return: cb}
+
     @bound   = tag is 'boundfunc'
     @context = '_this' if @bound
-    @autocb = false
-    for param in @params when param.name?.value == 'autocb'
-      @autocb = true
-      unless @flow
+
+    if !@autocb
+      @autocb = false
+      for param in @params when param.name?.value == 'autocb'
+        @autocb = true
         @flow = {next: 'autocb', return: 'autocb'}
-      break
+        break
     @
 
   children: ['params', 'body']
@@ -2771,7 +2781,7 @@ exports.If = class If extends Base
         body.push call
 
     # unless @condition?.async return @
-    @condition = @condition.move(dest) if @condition?.async
+    @condition = Base.move(dest, @condition) if @condition?.async
     @body.move()
     @elseBody?.move()
     @async = false
@@ -2812,6 +2822,8 @@ exports.AsyncCall = class AsyncCall extends Call
     node
 
   move: (dest) ->
+    return @ if @moved
+    @moved = true
     Base.move_arr(dest, @args)
     Base.move(dest, @)
 

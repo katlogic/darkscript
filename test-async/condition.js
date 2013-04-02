@@ -13,8 +13,11 @@ describe('if', function() {
   it('nested forward', function() {
     return code_eq("if a\n	if b\n		c!\nd", "var f1;\nf1 = function() {\n	return d\n}\nif (a) {\n	if (b) {\n		c(function() {\n			f1()\n		})\n	} else {\n		f1()\n	}\n} else {\n	f1()\n}");
   });
-  return it('nested partial', function() {
+  it('nested partial', function() {
     return code_eq("if a\n	x!\n	if b\n		return\nx", "var _fn;\n_fn = function() {\n	return x;\n}\n\nif (a) {\n	x(function() {\n		if (b) {\n			return;\n		}\n		_fn();\n	})\n} else {\n	_fn();\n}");
+  });
+  return it('if with async condition', function() {
+    return code_eq("if e = a!\n	b", "var e,\n	_this = this;\n\n(function(_$cb$_1) {\n	a(function() {\n		_$cb$_1(e = arguments[0]);\n	});\n})(function(_$$_0) {\n	if (_$$_0) {\n		return b;\n	}\n});");
   });
 });
 
