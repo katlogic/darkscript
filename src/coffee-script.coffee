@@ -151,7 +151,7 @@ loadFile = (module, filename) ->
 # If the installed version of Node supports `require.extensions`, register
 # CoffeeScript as an extension.
 if require.extensions
-  for ext in ['.coffee', '.litcoffee', '.coffee.md']
+  for ext in ['.coffee', '.litcoffee', '.coffee.md', '.toffee']
     require.extensions[ext] = loadFile
 
 # If we're on Node, patch `child_process.fork` so that Coffee scripts are able
