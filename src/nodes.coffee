@@ -430,6 +430,7 @@ exports.Block = class Block extends Base
     if compiledNodes.length > 1 and o.level >= LEVEL_LIST then @wrapInBraces answer else answer
 
   asyncCompileNode: (o) ->
+    return @
     dest = []
     while node = @expressions.shift()
       if node.next && node.constructor.name in ['For', 'If', 'While']
@@ -2532,7 +2533,8 @@ exports.For = class For extends While
           ifPart.elseBody.async = true
     if @pattern
       body.expressions.unshift new Assign @name, new Literal "#{svar}[#{kvar}]"
-    defPartFragments = [].concat @makeCode(defPart), @pluckDirectCall(o, body)
+    unless @async
+      defPartFragments = [].concat @makeCode(defPart), @pluckDirectCall(o, body)
     varPart = "\n#{idt1}#{namePart};" if namePart
     if @object
       forPartFragments   = [@makeCode("#{kvar} in #{svar}")]

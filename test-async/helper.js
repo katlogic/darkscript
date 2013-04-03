@@ -11,7 +11,6 @@ p = console.log;
 
 strip = function(code) {
   var res;
-
   res = minify(code, {
     fromString: true,
     output: {
@@ -23,7 +22,6 @@ strip = function(code) {
 
 code_eq = function(src_orig, dest_orig) {
   var dest, e, src, src_gened;
-
   try {
     src = strip(src_gened = compile(src_orig));
     dest = "(function(){" + dest_orig + "}).call(this)";

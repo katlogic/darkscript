@@ -98,6 +98,36 @@ describe 'for', ->
 				return null;
 			});
 		"""
+	it 'pluckdirectcall', ->
+		code_eq """
+			for i in [1..10]
+				c = b!
+			null
+		""", """
+			var c, i,
+				_this = this;
+
+			(function(_$cb$_0) {
+				var _body, _i, _step;
+				i = _i = 1;
+				_step = function() {
+					i = ++_i;
+					_body();
+				};
+				_body = function() {
+					if (_i <= 10) {
+						b(function() {
+							_step(c = arguments[0]);
+						});
+					} else {
+						_$cb$_0();
+					}
+				};
+				_body();
+			})(function() {
+				return null;
+			});
+		"""
 
 describe 'while', ->
 	it 'simple', ->
