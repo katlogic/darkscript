@@ -56,6 +56,7 @@ exports.Lexer = class Lexer
     while @chunk = code[i..]
       consumed = \
            @identifierToken() or
+           @regexpToken()     or
            @commentToken()    or
            @whitespaceToken() or
            @lineToken()       or
@@ -424,6 +425,18 @@ exports.Lexer = class Lexer
     @token tag, value
     value.length
 
+  regexpToken: ->
+    return 0 unless m = REGEXP_MATCHES.exec @chunk
+    [input, _, id] = m
+    id = switch id
+      when '&'
+        '__matches'
+      else
+        "__matches[#{id}]"
+    tagToken = @token 'IDENTIFIER', id, 0, id.length
+    input.length
+
+
   # Token Manipulators
   # ------------------
 
@@ -755,6 +768,10 @@ IDENTIFIER = /// ^
   ( [^\n\S]* : (?!:) )?  # Is this a property name?
 ///
 
+REGEXP_MATCHES = /// ^
+  ( \\(&|\d+))
+///
+
 NUMBER     = ///
   ^ 0b[01]+    |              # binary
   ^ 0o[0-7]+   |              # octal
@@ -770,6 +787,7 @@ OPERATOR   = /// ^ (
    | >>>=?             # zero-fill right shift
    | ([-+:])\1         # doubles
    | ([&|<>])\2=?      # logic / shift
+   | =~                # regexp
    | \?(\.|::)         # soak access
    | \.{2,3}           # range or splat
 ) ///
@@ -831,7 +849,7 @@ LOGIC   = ['&&', '||', '&', '|', '^']
 SHIFT   = ['<<', '>>', '>>>']
 
 # Comparison tokens.
-COMPARE = ['==', '!=', '<', '>', '<=', '>=']
+COMPARE = ['==', '!=', '<', '>', '<=', '>=', '=~']
 
 # Mathematical tokens.
 MATH    = ['*', '/', '%']

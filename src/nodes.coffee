@@ -2069,6 +2069,7 @@ exports.Op = class Op extends Base
     @first    = first
     @second   = second
     @flip     = !!flip
+    console.log op
     return this
 
   # The map of conversions from CoffeeScript to JavaScript symbols.
@@ -2152,6 +2153,7 @@ exports.Op = class Op extends Base
       @error 'delete operand may not be argument or var'
     if @operator in ['--', '++'] and @first.unwrapAll().value in STRICT_PROSCRIBED
       @error "cannot increment/decrement \"#{@first.unwrapAll().value}\""
+    return @compileRegexp    o if @operator == '=~'
     return @compileUnary     o if @isUnary()
     return @compileChain     o if isChain
     return @compileExistence o if @operator is '?'
@@ -2198,6 +2200,18 @@ exports.Op = class Op extends Base
     parts.push @first.compileToFragments o, LEVEL_OP
     parts.reverse() if @flip
     @joinFragmentArrays parts, ''
+
+  compileRegexp: (o) ->
+    new Assign(
+      new Value(new Literal('__matches')),
+      new Call(
+        new Value(
+          @first,
+          [new Access(new Literal('match'))]
+        ),
+        [@second]
+      )
+    ).compileToFragments o, LEVEL_OP
 
   toString: (idt) ->
     super idt, @constructor.name + ' ' + @operator
