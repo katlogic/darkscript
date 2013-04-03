@@ -769,7 +769,7 @@ IDENTIFIER = /// ^
 ///
 
 REGEXP_MATCHES = /// ^
-  ( \\(&|\d+))
+  ( \\(&|[0-9]))
 ///
 
 NUMBER     = ///

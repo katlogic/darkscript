@@ -2069,7 +2069,6 @@ exports.Op = class Op extends Base
     @first    = first
     @second   = second
     @flip     = !!flip
-    console.log op
     return this
 
   # The map of conversions from CoffeeScript to JavaScript symbols.
@@ -2212,7 +2211,7 @@ exports.Op = class Op extends Base
         ),
         [@second]
       )
-    ).compileToFragments o, LEVEL_OP
+    ).compileNode o
 
   toString: (idt) ->
     super idt, @constructor.name + ' ' + @operator
