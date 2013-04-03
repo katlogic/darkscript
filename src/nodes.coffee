@@ -2202,6 +2202,7 @@ exports.Op = class Op extends Base
     @joinFragmentArrays parts, ''
 
   compileRegexp: (o) ->
+    Scope.root.find '__matches'
     new Assign(
       new Value(new Literal('__matches')),
       new Call(
