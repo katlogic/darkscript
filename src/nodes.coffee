@@ -535,11 +535,7 @@ exports.Block = class Block extends Base
           fragments.push @makeCode ",\n#{@tab + TAB}" if declars
           fragments.push @makeCode (scope.assignedVariables().join ",\n#{@tab + TAB}")
         fragments.push @makeCode ";\n#{if @spaced then '\n' else ''}"
-      else if fragments.length && post.length
-        # beauty for
-        # ->
-        #   a
-        #   b()
+      else if fragments.length and post.length
         fragments.push @makeCode "\n"
     fragments.concat post
 
@@ -2360,6 +2356,9 @@ exports.Try = class Try extends Base
       tryPart,
       @makeCode("\n#{@tab}}"), catchPart, ensurePart
 
+  move: ->
+    @
+
 #### Throw
 
 # Simple node to throw an exception.
@@ -2664,7 +2663,6 @@ exports.Switch = class Switch extends Base
     fragments = [].concat @makeCode(@tab + "switch ("),
       (if @subject then @subject.compileToFragments(o, LEVEL_PAREN) else @makeCode("false")),
       @makeCode(") {\n")
-    puts @
     for [conditions, block], i in @cases
       for cond in flatten [conditions]
         cond  = cond.invert() unless @subject

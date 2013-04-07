@@ -4,6 +4,8 @@ vm = require 'vm'
 nodeREPL = require 'repl'
 CoffeeScript = require './coffee-script'
 {merge, prettyErrorMessage} = require './helpers'
+# Require AST nodes to do some AST manipulation.
+{Block, Assign, Value, Literal} = require './nodes'
 
 replDefaults =
   prompt: 'coffee> ',
@@ -15,9 +17,6 @@ replDefaults =
     # Node's REPL sends the input ending with a newline and then wrapped in
     # parens. Unwrap all that.
     input = input.replace /^\(([\s\S]*)\n\)$/m, '$1'
-
-    # Require AST nodes to do some AST manipulation.
-    {Block, Assign, Value, Literal} = require './nodes'
 
     try
       # Generate the AST of the clean input.
