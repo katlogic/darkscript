@@ -11,7 +11,7 @@ ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
     * Mathematics
     * Logical Operation
 2. Auto Callback
-3. Regexp Operator =~ and matches \&, \0~\9
+3. Regexp Operator `=~` and matches `\&`, `\0`~`\9`
 4. High efficent code generated.
 5. Sourcemap Supported.
     * Follow up to CoffeeScript 1.6.2 so far
@@ -186,7 +186,7 @@ a = function(autocb) {
   return autocb(null, 3);
 };</pre></td>
 </tr></table>
-Regexp
+### Regexp
 <table width=100%><tr>
 	<td width=50% valign=top><pre>if a =~ b || b =~ c
   a =~ d</pre></td>
