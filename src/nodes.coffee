@@ -2357,6 +2357,9 @@ exports.Try = class Try extends Base
       @makeCode("\n#{@tab}}"), catchPart, ensurePart
 
   move: ->
+    @attempt?.move() if @attempt?.async
+    @recovery?.move() if @recovery?.async
+    @ensure?.move() if @ensure?.async
     @
 
 #### Throw
