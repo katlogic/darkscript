@@ -2,6 +2,7 @@
 *.html
 .DS_Store
 .git*
+.coffee_history_test
 Cakefile
 documentation/
 examples/
@@ -9,3 +10,4 @@ extras/coffee-script.js
 raw/
 src/
 test/
+test-async/

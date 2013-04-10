@@ -1,7 +1,7 @@
 {
   "name":         "toffee-script",
-  "description":  "Unfancy JavaScript",
-  "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript"],
+  "description":  "CoffeeScript with asynchronous syntax and additional features",
+  "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript", "asynchronous"],
   "author":       "Miao Jiang",
   "version":      "1.6.2",
   "licenses":     [{
