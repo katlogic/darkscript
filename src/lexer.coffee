@@ -429,8 +429,10 @@ exports.Lexer = class Lexer
     return 0 unless m = REGEXP_MATCHES.exec @chunk
     [input, _, id] = m
     id = switch id
-      when '&'
+      when '~'
         '__matches'
+      when '&'
+        "__matches[0]"
       else
         "__matches[#{id}]"
     tagToken = @token 'IDENTIFIER', id, 0, id.length
@@ -769,7 +771,7 @@ IDENTIFIER = /// ^
 ///
 
 REGEXP_MATCHES = /// ^
-  ( \\(&|[0-9]))
+  ( \\(~|&|[0-9]))
 ///
 
 NUMBER     = ///
