@@ -16,12 +16,18 @@ ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
 5. Sourcemap Supported.
     * Follow up to CoffeeScript 1.6.2 so far
 
+Install
+-------
+
+    npm install toffee-script
+
 Code Examples
 -------------
 Left: ToffeeScript
 
 Right: Generated JavaScript
 ### Basic
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>x, y = a! b
 console.log x, y</pre></td>
@@ -34,6 +40,7 @@ a(b, function() {
 });</pre></td>
 </tr></table>
 ### Condition
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>if i
   x = a!
@@ -61,6 +68,7 @@ if (i) {
 </tr></table>
 ### Loop
 Support For In, For Of, While with guard `when`
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
   a!</pre></td>
@@ -97,6 +105,7 @@ Support For In, For Of, While with guard `when`
 });</pre></td>
 </tr></table>
 ### Mathematics
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>x = a! + b! * c!</pre></td>
 	<td width=50% valign=top><pre>var x,
@@ -119,6 +128,7 @@ Support For In, For Of, While with guard `when`
 });</pre></td>
 </tr></table>
 ### Object
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>A =
   a: a
@@ -143,6 +153,7 @@ Support For In, For Of, While with guard `when`
 </tr></table>
 ### Logical
 Support `||`, `&&`, `?`, `&&=`, `||=`, `?=`
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>x = a! || b!
 console.log x</pre></td>
@@ -169,6 +180,7 @@ console.log x</pre></td>
 });</pre></td>
 </tr></table>
 ### Auto Callback
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>a = (autocb) -&gt; return 3</pre></td>
 	<td width=50% valign=top><pre>var a;
@@ -178,6 +190,7 @@ a = function(autocb) {
 };</pre></td>
 </tr></table>
 Return Multiple Values
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>a = (autocb) -&gt; return null, 3</pre></td>
 	<td width=50% valign=top><pre>var a;
@@ -187,6 +200,7 @@ a = function(autocb) {
 };</pre></td>
 </tr></table>
 ### Regexp
+
 <table width=100%><tr>
 	<td width=50% valign=top><pre>if a =~ b || b =~ c
   \~
