@@ -39,6 +39,7 @@ a(b, function() {
   return console.log(x, y);
 });</pre></td>
 </tr></table>
+
 with powerful CoffeeScript assignment `[...]`
 
 <table width=100%>
@@ -53,6 +54,7 @@ a(b, function() {
   return console.log(_this.x, y);
 });</pre></td></tr>
 </table>
+
 ### Condition
 
 <table width=100%><tr>
@@ -80,6 +82,7 @@ if (i) {
   });
 }</pre></td>
 </tr></table>
+
 async in condition
 
 <table width=100%><tr>
@@ -105,6 +108,7 @@ _$$_0 = function() {
   }
 });</pre></td>
 </tr></table>
+
 ### Loop
 Support For In, For Of, While with guard `when`
 
@@ -144,6 +148,7 @@ Support For In, For Of, While with guard `when`
   return xs = arguments[0];
 });</pre></td>
 </tr></table>
+
 ### Mathematics
 
 <table width=100%><tr>
@@ -167,6 +172,7 @@ Support For In, For Of, While with guard `when`
   return x = arguments[0];
 });</pre></td>
 </tr></table>
+
 ### Object
 
 <table width=100%><tr>
@@ -191,6 +197,7 @@ Support For In, For Of, While with guard `when`
   return A = arguments[0];
 });</pre></td>
 </tr></table>
+
 ### Logical
 Support `||`, `&&`, `?`, `&&=`, `||=`, `?=`
 
@@ -219,6 +226,7 @@ console.log x</pre></td>
   return console.log(x);
 });</pre></td>
 </tr></table>
+
 ### Auto Callback
 
 <table width=100%><tr>
@@ -229,6 +237,7 @@ a = function(autocb) {
   return autocb(3);
 };</pre></td>
 </tr></table>
+
 Return Multiple Values
 
 <table width=100%><tr>
@@ -239,6 +248,7 @@ a = function(autocb) {
   return autocb(null, 3);
 };</pre></td>
 </tr></table>
+
 ### Regexp
 
 <table width=100%>
