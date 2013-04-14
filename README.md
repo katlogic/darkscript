@@ -39,6 +39,20 @@ a(b, function() {
   return console.log(x, y);
 });</pre></td>
 </tr></table>
+with powerful CoffeeScript assignment `[...]`
+
+<table width=100%><tr>
+	<td width=50% valign=top><pre>[@x, y...] = a! b
+console.log @x, y</pre></td>
+	<td width=50% valign=top><pre>var y,
+  _this = this,
+  __slice = [].slice;
+
+a(b, function() {
+  _this.x = arguments[0], y = 2 &lt;= arguments.length ? __slice.call(arguments, 1) : [];
+  return console.log(_this.x, y);
+});</pre></td>
+</tr></table>
 ### Condition
 
 <table width=100%><tr>
@@ -66,12 +80,38 @@ if (i) {
   });
 }</pre></td>
 </tr></table>
+async in condition
+
+<table width=100%><tr>
+	<td width=50% valign=top><pre>if e = a!
+  return cb(e)
+foo()</pre></td>
+	<td width=50% valign=top><pre>var e, _$$_0,
+  _this = this;
+
+_$$_0 = function() {
+  return foo();
+};
+
+(function(_$cb$_2) {
+  a(function() {
+    _$cb$_2(e = arguments[0]);
+  });
+})(function(_$$_1) {
+  if (_$$_1) {
+    return cb(e);
+  } else {
+    _$$_0();
+  }
+});</pre></td>
+</tr></table>
 ### Loop
 Support For In, For Of, While with guard `when`
 
 <table width=100%><tr>
 	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
-  a!</pre></td>
+  a!
+  # return arguments[0] in default</pre></td>
 	<td width=50% valign=top><pre>var i, xs,
   _this = this;
 
