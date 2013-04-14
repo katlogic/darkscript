@@ -28,7 +28,8 @@ Left: ToffeeScript
 Right: Generated JavaScript
 ### Basic
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>x, y = a! b
 console.log x, y</pre></td>
 	<td width=50% valign=top><pre>var x, y,
@@ -38,14 +39,14 @@ a(b, function() {
   x = arguments[0], y = arguments[1];
   return console.log(x, y);
 });</pre></td>
-</tr></table>
-
+</tr>
+</table>
 with powerful CoffeeScript assignment `[...]`
 
 <table width=100%>
-	<tr><td width=100%><pre>[@x, y...] = a! b
+<tr><td width=100%><pre>[@x, y...] = a! b
 console.log @x, y</pre></td></tr>
-	<tr><td width=100%><pre>var y,
+<tr><td width=100%><pre>var y,
   _this = this,
   __slice = [].slice;
 
@@ -54,10 +55,10 @@ a(b, function() {
   return console.log(_this.x, y);
 });</pre></td></tr>
 </table>
-
 ### Condition
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>if i
   x = a!
 else
@@ -81,11 +82,12 @@ if (i) {
     _$$_0();
   });
 }</pre></td>
-</tr></table>
-
+</tr>
+</table>
 async in condition
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>if e = a!
   return cb(e)
 foo()</pre></td>
@@ -107,12 +109,13 @@ _$$_0 = function() {
     _$$_0();
   }
 });</pre></td>
-</tr></table>
-
+</tr>
+</table>
 ### Loop
 Support For In, For Of, While with guard `when`
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
   a!
   # return arguments[0] in default</pre></td>
@@ -147,11 +150,12 @@ Support For In, For Of, While with guard `when`
 })(function() {
   return xs = arguments[0];
 });</pre></td>
-</tr></table>
-
+</tr>
+</table>
 ### Mathematics
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>x = a! + b! * c!</pre></td>
 	<td width=50% valign=top><pre>var x,
   _this = this;
@@ -171,11 +175,12 @@ Support For In, For Of, While with guard `when`
 })(function() {
   return x = arguments[0];
 });</pre></td>
-</tr></table>
-
+</tr>
+</table>
 ### Object
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>A =
   a: a
   b: b!
@@ -196,12 +201,13 @@ Support For In, For Of, While with guard `when`
 })(function() {
   return A = arguments[0];
 });</pre></td>
-</tr></table>
-
+</tr>
+</table>
 ### Logical
 Support `||`, `&&`, `?`, `&&=`, `||=`, `?=`
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>x = a! || b!
 console.log x</pre></td>
 	<td width=50% valign=top><pre>var x,
@@ -225,39 +231,41 @@ console.log x</pre></td>
   x = arguments[0];
   return console.log(x);
 });</pre></td>
-</tr></table>
-
+</tr>
+</table>
 ### Auto Callback
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>a = (autocb) -&gt; return 3</pre></td>
 	<td width=50% valign=top><pre>var a;
 
 a = function(autocb) {
   return autocb(3);
 };</pre></td>
-</tr></table>
-
+</tr>
+</table>
 Return Multiple Values
 
-<table width=100%><tr>
+<table width=100%>
+<tr>
 	<td width=50% valign=top><pre>a = (autocb) -&gt; return null, 3</pre></td>
 	<td width=50% valign=top><pre>var a;
 
 a = function(autocb) {
   return autocb(null, 3);
 };</pre></td>
-</tr></table>
-
+</tr>
+</table>
 ### Regexp
 
 <table width=100%>
-	<tr><td width=100%><pre>if a =~ b || b =~ c
+<tr><td width=100%><pre>if a =~ b || b =~ c
   \~
   \&
   \0
   \9</pre></td></tr>
-	<tr><td width=100%><pre>var __matches;
+<tr><td width=100%><pre>var __matches;
 
 if ((__matches = a.match(b)) || (__matches = b.match(c))) {
   __matches;
