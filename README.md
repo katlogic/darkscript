@@ -16,8 +16,8 @@ ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
 5. Sourcemap Supported.
     * Follow up to CoffeeScript 1.6.2 so far
 
-Install
--------
+Installation
+------------
 
     npm install toffee-script
 
@@ -41,18 +41,18 @@ a(b, function() {
 </tr></table>
 with powerful CoffeeScript assignment `[...]`
 
-<table width=100%><tr>
-	<td width=50% valign=top><pre>[@x, y...] = a! b
-console.log @x, y</pre></td>
-	<td width=50% valign=top><pre>var y,
+<table width=100%>
+	<tr><td width=100%><pre>[@x, y...] = a! b
+console.log @x, y</pre></td></tr>
+	<tr><td width=100%><pre>var y,
   _this = this,
   __slice = [].slice;
 
 a(b, function() {
   _this.x = arguments[0], y = 2 &lt;= arguments.length ? __slice.call(arguments, 1) : [];
   return console.log(_this.x, y);
-});</pre></td>
-</tr></table>
+});</pre></td></tr>
+</table>
 ### Condition
 
 <table width=100%><tr>
@@ -241,18 +241,18 @@ a = function(autocb) {
 </tr></table>
 ### Regexp
 
-<table width=100%><tr>
-	<td width=50% valign=top><pre>if a =~ b || b =~ c
+<table width=100%>
+	<tr><td width=100%><pre>if a =~ b || b =~ c
   \~
   \&
   \0
-  \9</pre></td>
-	<td width=50% valign=top><pre>var __matches;
+  \9</pre></td></tr>
+	<tr><td width=100%><pre>var __matches;
 
 if ((__matches = a.match(b)) || (__matches = b.match(c))) {
   __matches;
   __matches[0];
   __matches[0];
   __matches[9];
-}</pre></td>
-</tr></table>
+}</pre></td></tr>
+</table>
