@@ -2596,7 +2596,9 @@ exports.For = class For extends While
       # @name = v
       # @index = k
       # for own k, v of a
+      #
       # to
+      #
       # keys = for own k of a
       # for k in keys
       #   v = a[k]
@@ -2620,11 +2622,12 @@ exports.For = class For extends While
       @own = @object = @guard = @index = @step = null
       @source = keys
       @name = orig_index
-      @body.unshift(new Assign(
-        orig_name, new Value(orig_source, [
-          new Index(orig_index)
-        ])
-      ))
+      if orig_name
+        @body.unshift(new Assign(
+          orig_name, new Value(orig_source, [
+            new Index(orig_index)
+          ])
+        ))
     @step  = @step.move(dest) if @step?.async
     # guard is part of body, should be in the body
     @error("Guard cannot be async") if @guard?.async
