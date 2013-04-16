@@ -20,7 +20,7 @@ describe 'basic', ->
 			a(b, c, function() {
 				x = arguments[0]
 				y = arguments[1]
-				return arguments
+				return x
 			})
 		"""
 

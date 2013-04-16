@@ -1525,6 +1525,7 @@ exports.Assign = class Assign extends Base
       assigns.push [@makeCode("#{ ref = o.scope.freeVariable 'ref' } = "), vvar...]
       vvar = [@makeCode ref]
       vvarText = ref
+    first_obj = null
     for obj, i in objects
       # A regular array pattern-match.
       idx = i
@@ -1561,8 +1562,13 @@ exports.Assign = class Assign extends Base
         val = new Value new Literal(vvarText), [new (if acc then Access else Index) idx]
       if name? and name in RESERVED
         obj.error "assignment to a reserved word: #{obj.compile o}"
+      first_obj ?= obj
       assigns.push new Assign(obj, val, null, param: @param, subpattern: yes).compileToFragments o, LEVEL_LIST
-    assigns.push vvar unless top or @subpattern
+    unless top or @subpattern
+      if @return_first && first_obj
+        assigns.push first_obj.compileToFragments o, LEVEL_LIST
+      else
+        assigns.push vvar
     fragments = @joinFragmentArrays assigns, ', '
     if o.level < LEVEL_LIST then fragments else @wrapInBraces fragments
 
@@ -1632,6 +1638,7 @@ exports.Assign = class Assign extends Base
       else
         @value = new Value new Literal 'arguments[0]'
       @async = false
+      @return_first = true
       call.assign = @
       dest.push call
       return null
@@ -2824,6 +2831,7 @@ exports.AsyncCall = class AsyncCall extends Call
     params = []
     if @assign
       if @assign.moved
+        # moved assignment is temporary, could use param of callback
         params = [new Param @assign.variable.base]
       else
         next_body.unshift(@assign)

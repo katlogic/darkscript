@@ -125,6 +125,25 @@ describe 'if', ->
 			});
 		"""
 
+	it 'if with async condition multi return', ->
+		code_eq """
+			if e, x = a!
+				b
+		""","""
+			var e, x,
+				_this = this;
+
+			(function(_$cb$_1) {
+				a(function() {
+					_$cb$_1((e = arguments[0], x = arguments[1], e));
+				});
+			})(function(_$$_0) {
+				if (_$$_0) {
+					return b;
+				}
+			});
+		"""
+
 describe 'if + autocb', ->
 	it 'simple', ->
 		code_eq """

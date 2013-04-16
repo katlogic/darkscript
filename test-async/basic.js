@@ -11,6 +11,6 @@ describe('basic', function() {
     return code_eq("y = x!", "var y\nx(function() {\n	return y = arguments[0]\n})");
   });
   return it('full feature', function() {
-    return code_eq("x, y = a! b, c", "var x, y\na(b, c, function() {\n	x = arguments[0]\n	y = arguments[1]\n	return arguments\n})");
+    return code_eq("x, y = a! b, c", "var x, y\na(b, c, function() {\n	x = arguments[0]\n	y = arguments[1]\n	return x\n})");
   });
 });
