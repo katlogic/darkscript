@@ -41,6 +41,7 @@ a(b, function() {
 });</pre></td>
 </tr>
 </table>
+
 with powerful CoffeeScript assignment `[...]`
 
 <table width=100%>
@@ -55,6 +56,7 @@ a(b, function() {
   return console.log(_this.x, y);
 });</pre></td></tr>
 </table>
+
 ### Condition
 
 <table width=100%>
@@ -84,7 +86,8 @@ if (i) {
 }</pre></td>
 </tr>
 </table>
-async in condition
+
+Async in condition
 
 <table width=100%>
 <tr>
@@ -111,6 +114,35 @@ _$$_0 = function() {
 });</pre></td>
 </tr>
 </table>
+
+Async in condition with multi return
+
+Async call always return first argument
+
+<table width=100%>
+<tr><td width=100%><pre>if e, data = fs.readFile! 'foo'
+  return cb(e)
+console.log data</pre></td></tr>
+<tr><td width=100%><pre>var data, e, _$$_0,
+  _this = this;
+
+_$$_0 = function() {
+  return console.log(data);
+};
+
+(function(_$cb$_2) {
+  fs.readFile('foo', function() {
+    _$cb$_2((e = arguments[0], data = arguments[1], e));
+  });
+})(function(_$$_1) {
+  if (_$$_1) {
+    return cb(e);
+  } else {
+    _$$_0();
+  }
+});</pre></td></tr>
+</table>
+
 ### Loop
 Support For In, For Of, While with guard `when`
 
@@ -152,6 +184,7 @@ Support For In, For Of, While with guard `when`
 });</pre></td>
 </tr>
 </table>
+
 ### Mathematics
 
 <table width=100%>
@@ -177,6 +210,7 @@ Support For In, For Of, While with guard `when`
 });</pre></td>
 </tr>
 </table>
+
 ### Object
 
 <table width=100%>
@@ -203,6 +237,7 @@ Support For In, For Of, While with guard `when`
 });</pre></td>
 </tr>
 </table>
+
 ### Logical
 Support `||`, `&&`, `?`, `&&=`, `||=`, `?=`
 
@@ -233,6 +268,7 @@ console.log x</pre></td>
 });</pre></td>
 </tr>
 </table>
+
 ### Auto Callback
 
 <table width=100%>
@@ -245,6 +281,7 @@ a = function(autocb) {
 };</pre></td>
 </tr>
 </table>
+
 Return Multiple Values
 
 <table width=100%>
@@ -257,6 +294,7 @@ a = function(autocb) {
 };</pre></td>
 </tr>
 </table>
+
 ### Regexp
 
 <table width=100%>
