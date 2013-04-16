@@ -528,6 +528,7 @@ grammar =
   # ambiguity.
   IfBlock: [
     o 'IF Expression Block',                    -> new If $2, $3, type: $1
+    o 'IF Async Block',                         -> new If $2, $3, type: $1
     o 'IfBlock ELSE IF Expression Block',       -> $1.addElse new If $4, $5, type: $3
   ]
 
