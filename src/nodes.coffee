@@ -1990,9 +1990,13 @@ exports.While = class While extends Base
       o.scope.find(@results_id)
       blocks.push new Literal "#{@results_id} = []"
 
+    if info.defPart
+      blocks.push info.defPart
+
     if info.initPart
       # init
       blocks.push info.initPart
+
 
     if info.stepPart
       step_name = o.scope.freeVariable('step')
@@ -2560,6 +2564,7 @@ exports.For = class For extends While
       forPartFragments   = [@makeCode("#{kvar} in #{svar}")]
       guardPart = "\n#{idt1}if (!#{utility 'hasProp'}.call(#{svar}, #{kvar})) continue;" if @own
     info.body = body
+    info.defPart = new Literal defPart.replace(/;\s*$/, '')
     if varPart
       info.varPart = new Literal(varPart.trim().slice(0,-1))
     info.results = rvar

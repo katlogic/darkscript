@@ -224,6 +224,39 @@ describe 'for', ->
 			});
 		"""
 
+	it 'contain defPart', ->
+		code_eq """
+			for x in a.b
+				c!
+			null
+		""", """
+			var x,
+			  _this = this;
+
+			(function(_$cb$_0) {
+			  var _body, _i, _len, _ref, _step;
+				_ref = a.b;
+			  _i = 0, _len = _ref.length;
+			  _step = function() {
+				_i++;
+				_body();
+			  };
+			  _body = function() {
+				if (_i < _len) {
+				  x = _ref[_i];
+				  c(function(_$$_1) {
+					_step(_$$_1);
+				  });
+				} else {
+				  _$cb$_0();
+				}
+			  };
+			  _body();
+			})(function() {
+			  return null;
+			});
+		"""
+
 describe 'while', ->
 	it 'simple', ->
 		code_eq """
