@@ -129,6 +129,101 @@ describe 'for', ->
 			});
 		"""
 
+	it 'end with async condition', ->
+		code_eq """
+			res = for x in a
+				if y = b
+					z = c!
+		""", """
+			var res, x, y, z,
+			  _this = this;
+
+			(function(_$cb$_0) {
+			  var _$res$_1, _body, _done, _i, _len, _step;
+			  _$res$_1 = [];
+			  _i = 0, _len = a.length;
+			  _step = function() {
+				_i++;
+				_body();
+			  };
+			  _body = function() {
+				if (_i < _len) {
+				  x = a[_i];
+				  if (y = b) {
+					(function(_$cb$_3) {
+					  c(function() {
+						_$cb$_3(z = arguments[0]);
+					  });
+					})(function(_$$_2) {
+					  _step(_$res$_1.push(_$$_2));
+					});
+				  } else {
+					_step(_$res$_1.push(void 0));
+				  }
+				} else {
+				  _done();
+				}
+			  };
+			  _done = function() {
+				_$cb$_0(_$res$_1);
+			  };
+			  _body();
+			})(function() {
+			  return res = arguments[0];
+			});
+		"""
+
+	it 'nested for', ->
+		code_eq """
+			for x in a
+				for y in b
+					c!
+			null
+		""", """
+			var x, y,
+			  _this = this;
+
+			(function(_$cb$_1) {
+			  var _body, _i, _len, _step;
+			  _i = 0, _len = a.length;
+			  _step = function() {
+				_i++;
+				_body();
+			  };
+			  _body = function() {
+				if (_i < _len) {
+				  x = a[_i];
+				  (function(_$cb$_0) {
+					var _body1, _j, _len1, _step1;
+					_j = 0, _len1 = b.length;
+					_step1 = function() {
+					  _j++;
+					  _body1();
+					};
+					_body1 = function() {
+					  if (_j < _len1) {
+						y = b[_j];
+						c(function(_$$_3) {
+						  _step1(_$$_3);
+						});
+					  } else {
+						_$cb$_0();
+					  }
+					};
+					_body1();
+				  })(function(_$$_2) {
+					_step(_$$_2);
+				  });
+				} else {
+				  _$cb$_1();
+				}
+			  };
+			  _body();
+			})(function() {
+			  return null;
+			});
+		"""
+
 describe 'while', ->
 	it 'simple', ->
 		code_eq """

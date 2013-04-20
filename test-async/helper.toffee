@@ -1,22 +1,23 @@
 assert = require 'assert'
 {compile} = require '../lib/coffee-script'
-{minify} = require 'uglify-js'
+UglifyJS = require 'uglify-js'
 p = console.log
 
 strip = (code) ->
-	res = minify(code, {
-		fromString: true
-		output: {
-			beautify: true
-		}
-	})
-	res.code
+	ast = UglifyJS.parse(code)
+	ast.figure_out_scope()
+	# wont compute_char_frequency to keep the code generated is always same.
+	# ast.compute_char_frequency();
+	ast.mangle_names();
+	compressor = UglifyJS.Compressor({warnings: false})
+	ast = ast.transform(compressor)
+	ast.print_to_string({beautify: true})
 
 code_eq = (src_orig, dest_orig) ->
 	try
 		src  = strip src_gened = compile(src_orig)
-		dest = "(function(){#{dest_orig}}).call(this)"
-		dest = strip dest
+		dest_wrapped = "(function() {\n#{dest_orig}\n\n}).call(this);"
+		dest = strip dest_wrapped
 		assert.equal src, dest
 
 	catch e
@@ -25,7 +26,7 @@ code_eq = (src_orig, dest_orig) ->
 		console.log '----'
 		console.log src_gened
 		console.log "----"
-		console.log dest_orig
+		console.log dest_wrapped
 		console.log ">>>>"
 		throw e
 
