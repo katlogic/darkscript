@@ -157,7 +157,7 @@ exports.Base = class Base
   # This is what `coffee --nodes` prints out.
   toString: (idt = '', name = @constructor.name) ->
     tree = '\n' + idt + name
-    for v in ['autocb', 'async', 'bound', 'cross', 'moved', 'no_results', 'generated'] when @[v]
+    for v in ['autocb', 'async', 'bound', 'cross', 'moved', 'no_results', 'generated', 'need_return'] when @[v]
       tree += " [#{v}]"
     if @omit_return
       tree += " [omit]"
@@ -556,7 +556,7 @@ exports.Block = class Block extends Base
     @expressions = dest
     return true
 
-  move: () ->
+  move: (parent_has_results = true) ->
     dest = []
     while node = @expressions.shift()
       if node.async
@@ -567,8 +567,8 @@ exports.Block = class Block extends Base
           node = node.move(moved, @expressions)
           @expressions = []
         else if (node instanceof For || node instanceof While)
-          # if For need return results, then For must have already been wrapped then the @expressions is 0, otherwise, it is in the block, with @expressions after.
-          if @expressions.length
+          # if For need return results, then For must have already been wrapped to `a = for` then the @expressions is 0, otherwise, it is in the block, with @expressions after.
+          if @expressions.length || !parent_has_results
             node = node.move(dest, false)
             node = AsyncCall.wrap(node)
           else
@@ -2641,7 +2641,7 @@ exports.For = class For extends While
       @body.makeReturn(@results_id)
     else
       @results_id = false
-    @body.move()
+    @body.move(results)
     @
 
 #### Switch
@@ -2744,7 +2744,7 @@ exports.If = class If extends Base
 
   makeReturn: (res) ->
     @elseBody  or= Block.wrap [new Literal 'void 0'] if res
-    @elseBody or= new Block([]) if $flows.last().next
+    @elseBody or= new Block([]) if !@elseBody && $flows.last().next
     @body     and= Block.wrap [@body.makeReturn res]
     @elseBody and= Block.wrap [@elseBody.makeReturn res]
     this
