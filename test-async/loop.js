@@ -22,8 +22,11 @@ describe('for', function() {
   it('nested for', function() {
     return code_eq("for x in a\n	for y in b\n		c!\nnull", "var x, y,\n  _this = this;\n\n(function(_$cb$_1) {\n  var _body, _i, _len, _step;\n  _i = 0, _len = a.length;\n  _step = function() {\n	_i++;\n	_body();\n  };\n  _body = function() {\n	if (_i < _len) {\n	  x = a[_i];\n	  (function(_$cb$_0) {\n		var _body1, _j, _len1, _step1;\n		_j = 0, _len1 = b.length;\n		_step1 = function() {\n		  _j++;\n		  _body1();\n		};\n		_body1 = function() {\n		  if (_j < _len1) {\n			y = b[_j];\n			c(function(_$$_3) {\n			  _step1(_$$_3);\n			});\n		  } else {\n			_$cb$_0();\n		  }\n		};\n		_body1();\n	  })(function(_$$_2) {\n		_step(_$$_2);\n	  });\n	} else {\n	  _$cb$_1();\n	}\n  };\n  _body();\n})(function() {\n  return null;\n});");
   });
-  return it('contain defPart', function() {
+  it('contain defPart', function() {
     return code_eq("for x in a.b\n	c!\nnull", "var x,\n  _this = this;\n\n(function(_$cb$_0) {\n  var _body, _i, _len, _ref, _step;\n	_ref = a.b;\n  _i = 0, _len = _ref.length;\n  _step = function() {\n	_i++;\n	_body();\n  };\n  _body = function() {\n	if (_i < _len) {\n	  x = _ref[_i];\n	  c(function(_$$_1) {\n		_step(_$$_1);\n	  });\n	} else {\n	  _$cb$_0();\n	}\n  };\n  _body();\n})(function() {\n  return null;\n});");
+  });
+  return it('for own width defPart', function() {
+    return code_eq("for own k, v of a.b\n	c!\nnull", "var k, v, _$$_0, _$$_1, _$$_2,\n  __hasProp = {}.hasOwnProperty,\n  _this = this;\n\n_$$_1 = a.b;\n\n_$$_2 = (function() {\n  var _results;\n  _results = [];\n  for (_$$_0 in _$$_1) {\n	if (!__hasProp.call(_$$_1, _$$_0)) continue;\n	_results.push(_$$_0);\n  }\n  return _results;\n})();\n\n(function(_$cb$_3) {\n  var _body, _i, _len, _step;\n  _i = 0, _len = _$$_2.length;\n  _step = function() {\n	_i++;\n	_body();\n  };\n  _body = function() {\n	if (_i < _len) {\n	  k = _$$_2[_i];\n	  v = _$$_1[k];\n	  c(function(_$$_4) {\n		_step(_$$_4);\n	  });\n	} else {\n	  _$cb$_3();\n	}\n  };\n  _body();\n})(function() {\n  return null;\n});");
   });
 });
 

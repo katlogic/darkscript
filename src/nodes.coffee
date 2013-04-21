@@ -1997,7 +1997,6 @@ exports.While = class While extends Base
       # init
       blocks.push info.initPart
 
-
     if info.stepPart
       step_name = o.scope.freeVariable('step')
       # step
@@ -2564,9 +2563,8 @@ exports.For = class For extends While
       forPartFragments   = [@makeCode("#{kvar} in #{svar}")]
       guardPart = "\n#{idt1}if (!#{utility 'hasProp'}.call(#{svar}, #{kvar})) continue;" if @own
     info.body = body
-    info.defPart = new Literal defPart.replace(/;\s*$/, '')
-    if varPart
-      info.varPart = new Literal(varPart.trim().slice(0,-1))
+    info.defPart = new Literal defPart.replace(/;\s*$/, '') if defPart
+    info.varPart = new Literal varPart.trim().slice(0,-1) if varPart
     info.results = rvar
     return @asyncCompileNode(o, info) if @async
     bodyFragments = body.compileToFragments merge(o, indent: idt1), LEVEL_TOP
@@ -2604,16 +2602,17 @@ exports.For = class For extends While
     if @object
       # @name = v
       # @index = k
-      # for own k, v of a
+      # for own k, v of a.b
       #
       # to
       #
-      # keys = for own k of a
+      # _ref = a.b
+      # keys = for own k of _ref
       # for k in keys
-      #   v = a[k]
+      #   v = _ref[k]
       key_name = uid()
       orig_source = @source
-      unless @source.base instanceof Literal
+      unless @source.base instanceof Literal && !@source.hasProperties()
         orig_source = Base.move(dest, orig_source)
       orig_name = @name
       orig_index = @index

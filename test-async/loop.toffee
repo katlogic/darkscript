@@ -257,6 +257,52 @@ describe 'for', ->
 			});
 		"""
 
+	it 'for own width defPart', ->
+		code_eq """
+			for own k, v of a.b
+				c!
+			null
+		""", """
+			var k, v, _$$_0, _$$_1, _$$_2,
+			  __hasProp = {}.hasOwnProperty,
+			  _this = this;
+
+			_$$_1 = a.b;
+
+			_$$_2 = (function() {
+			  var _results;
+			  _results = [];
+			  for (_$$_0 in _$$_1) {
+				if (!__hasProp.call(_$$_1, _$$_0)) continue;
+				_results.push(_$$_0);
+			  }
+			  return _results;
+			})();
+
+			(function(_$cb$_3) {
+			  var _body, _i, _len, _step;
+			  _i = 0, _len = _$$_2.length;
+			  _step = function() {
+				_i++;
+				_body();
+			  };
+			  _body = function() {
+				if (_i < _len) {
+				  k = _$$_2[_i];
+				  v = _$$_1[k];
+				  c(function(_$$_4) {
+					_step(_$$_4);
+				  });
+				} else {
+				  _$cb$_3();
+				}
+			  };
+			  _body();
+			})(function() {
+			  return null;
+			});
+		"""
+
 describe 'while', ->
 	it 'simple', ->
 		code_eq """
