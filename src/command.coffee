@@ -26,9 +26,9 @@ hidden = (file) -> /^\.|~$/.test file
 
 # The help banner that is printed when `coffee` is called without arguments.
 BANNER = '''
-  Usage: toffee [options] path/to/script.coffee -- [args]
+  Usage: toffee [options] path/to/script.toffee -- [args]
 
-  If called without options, `coffee` will run your script.
+  If called without options, `toffee` will run your script.
 '''
 
 # The list of all the valid option flags that `coffee` knows how to handle.
