@@ -15,6 +15,7 @@ ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
 4. High efficent code generated.
 5. Sourcemap Supported.
     * Follow up to CoffeeScript 1.6.2 so far
+6. Safety named-function supported.
 
 Installation
 ------------
@@ -66,10 +67,10 @@ a(b, function() {
 else
   y = b!
 console.log x, y</pre></td>
-	<td width=50% valign=top><pre>var x, y, _$$_0,
+	<td width=50% valign=top><pre>var x, y,
   _this = this;
 
-_$$_0 = function() {
+function _$$_0() {
   return console.log(x, y);
 };
 
@@ -94,10 +95,10 @@ Async in condition
 	<td width=50% valign=top><pre>if e = a!
   return cb(e)
 foo()</pre></td>
-	<td width=50% valign=top><pre>var e, _$$_0,
+	<td width=50% valign=top><pre>var e,
   _this = this;
 
-_$$_0 = function() {
+function _$$_0() {
   return foo();
 };
 
@@ -123,10 +124,10 @@ Async call always return first argument
 <tr><td width=100%><pre>if e, data = fs.readFile! 'foo'
   return cb(e)
 console.log data</pre></td></tr>
-<tr><td width=100%><pre>var data, e, _$$_0,
+<tr><td width=100%><pre>var data, e,
   _this = this;
 
-_$$_0 = function() {
+function _$$_0() {
   return console.log(data);
 };
 
@@ -274,9 +275,7 @@ console.log x</pre></td>
 <table width=100%>
 <tr>
 	<td width=50% valign=top><pre>a = (autocb) -&gt; return 3</pre></td>
-	<td width=50% valign=top><pre>var a;
-
-a = function(autocb) {
+	<td width=50% valign=top><pre>function a(autocb) {
   return autocb(3);
 };</pre></td>
 </tr>
@@ -287,9 +286,7 @@ Return Multiple Values
 <table width=100%>
 <tr>
 	<td width=50% valign=top><pre>a = (autocb) -&gt; return null, 3</pre></td>
-	<td width=50% valign=top><pre>var a;
-
-a = function(autocb) {
+	<td width=50% valign=top><pre>function a(autocb) {
   return autocb(null, 3);
 };</pre></td>
 </tr>
@@ -311,4 +308,42 @@ if ((__matches = a.match(b)) || (__matches = b.match(c))) {
   __matches[0];
   __matches[9];
 }</pre></td></tr>
+</table>
+
+### Named Function Supported
+
+<table width=100%>
+<tr>
+	<td width=50% valign=top><pre>a = -&gt;
+null</pre></td>
+	<td width=50% valign=top><pre>function a() {};
+
+null;</pre></td>
+</tr>
+</table>
+
+Only compile under code block, any condition, call will keep in non-named function
+
+<table width=100%>
+<tr>
+	<td width=50% valign=top><pre>f = null
+if a
+  b = c -&gt;
+d e = ->
+f = ->
+null</pre></td>
+	<td width=50% valign=top><pre>var b, e, f;
+
+f = null;
+
+if (a) {
+  b = c(function() {});
+}
+
+d(e = function() {});
+
+f = function() {};
+
+null;</pre></td>
+</tr>
 </table>
