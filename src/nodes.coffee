@@ -474,6 +474,7 @@ exports.Value = class Value extends Base
   isAssignable   : -> @hasProperties() or @base.isAssignable()
   isSimpleNumber : -> @base instanceof Literal and SIMPLENUM.test @base.value
   isString       : -> @base instanceof Literal and IS_STRING.test @base.value
+  isIdentifier   : -> not @hasProperties() and @base instanceof Literal and IDENTIFIER.test @base.value
   isAtomic       : ->
     for node in @properties.concat @base
       return no if node.soak or node instanceof Call
@@ -1118,6 +1119,9 @@ exports.Assign = class Assign extends Base
   isStatement: (o) ->
     o?.level is LEVEL_TOP and @context? and "?" in @context
 
+  isFunctionDeclareation: ->
+    not @context? and @variable.isIdentifier() and @value instanceof Code
+
   assigns: (name) ->
     @[if @context is 'object' then 'value' else 'variable'].assigns name
 
@@ -1133,6 +1137,7 @@ exports.Assign = class Assign extends Base
       return @compilePatternMatch o if @variable.isArray() or @variable.isObject()
       return @compileSplice       o if @variable.isSplice()
       return @compileConditional  o if @context in ['||=', '&&=', '?=']
+      return @compileFunction     o if @isFunctionDeclareation() and o.level == LEVEL_TOP and not o.scope.check(@variable.base.value)
     compiledName = @variable.compileToFragments o, LEVEL_LIST
     name = fragmentsToText compiledName
     unless @context
@@ -1263,6 +1268,13 @@ exports.Assign = class Assign extends Base
     answer = [].concat @makeCode("[].splice.apply(#{name}, [#{fromDecl}, #{to}].concat("), valDef, @makeCode(")), "), valRef
     if o.level > LEVEL_TOP then @wrapInBraces answer else answer
 
+  compileFunction: (o) ->
+    name = @variable.base.value
+    o.scope.add name, 'param'
+    @value.name = name
+    @value.isNamedFunction = true
+    @value.compileToFragments(o, LEVEL_TOP)
+
 #### Code
 
 # A function definition. This is the only node that creates a new Scope.
@@ -1333,7 +1345,7 @@ exports.Code = class Code extends Base
         o.scope.parent.assign '_this', 'this'
     idt   = o.indent
     code  = 'function'
-    code  += ' ' + @name if @ctor
+    code  += ' ' + @name if @ctor or @isNamedFunction
     code  += '('
     answer = [@makeCode(code)]
     for p, i in params
