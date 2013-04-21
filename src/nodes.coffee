@@ -836,7 +836,7 @@ exports.Comment = class Comment extends Base
   makeReturn:      THIS
 
   compileNode: (o, level) ->
-    code = '/*' + multident(@comment, @tab) + "\n#{@tab}*/\n"
+    code = "/*#{multident @comment, @tab}#{if '\n' in @comment then "\n#{@tab}" else ''}*/\n"
     code = o.indent + code if (level or o.level) is LEVEL_TOP
     [@makeCode code]
 
@@ -1207,7 +1207,7 @@ exports.Obj = class Obj extends Base
         ',\n'
       indent = if prop instanceof Comment then '' else idt
       if prop instanceof Assign and prop.variable instanceof Value and prop.variable.hasProperties()
-        throw new SyntaxError 'Invalid object key'
+        prop.variable.error 'Invalid object key'
       if prop instanceof Value and prop.this
         prop = new Assign prop.properties[0].name, prop, 'object'
       if prop not instanceof Comment
