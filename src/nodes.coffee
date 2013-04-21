@@ -272,6 +272,7 @@ exports.Block = class Block extends Base
 
       node = node.unwrapAll()
       node = (node.unfoldSoak(o) or node)
+      node.underCodeBlock = @isCodeBlock
       if node instanceof Block
         # This is a nested block. We don't do anything special here like enclose
         # it in a new scope; we just compile the statements in this block along with
@@ -306,6 +307,7 @@ exports.Block = class Block extends Base
     o.level   = LEVEL_TOP
     @spaced   = yes
     o.scope   = new Scope null, this, null
+    @isCodeBlock = true
     # Mark given local variables in the root scope as parameters so they don't
     # end up being declared on this block.
     o.scope.parameter name for name in o.locals or []
@@ -1137,7 +1139,7 @@ exports.Assign = class Assign extends Base
       return @compilePatternMatch o if @variable.isArray() or @variable.isObject()
       return @compileSplice       o if @variable.isSplice()
       return @compileConditional  o if @context in ['||=', '&&=', '?=']
-      return @compileFunction     o if @isFunctionDeclareation() and o.level == LEVEL_TOP and not o.scope.check(@variable.base.value)
+      return @compileFunction     o if @isFunctionDeclareation() and not o.scope.check(@variable.base.value) and @underCodeBlock
     compiledName = @variable.compileToFragments o, LEVEL_LIST
     name = fragmentsToText compiledName
     unless @context
@@ -1286,6 +1288,7 @@ exports.Code = class Code extends Base
     @body    = body or new Block
     @bound   = tag is 'boundfunc'
     @context = '_this' if @bound
+    @body.isCodeBlock = true
 
   children: ['params', 'body']
 
