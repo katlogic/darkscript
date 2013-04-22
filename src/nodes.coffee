@@ -428,7 +428,6 @@ exports.Block = class Block extends Base
     else
       answer = [@makeCode "void 0"]
     if compiledNodes.length > 1 and o.level >= LEVEL_LIST then @wrapInBraces answer else answer
-    answer
 
   # If we happen to be the top-level **Block**, wrap everything in
   # a safety closure, unless requested not to.
