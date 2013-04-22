@@ -292,7 +292,7 @@ exports.Base = class Base
     )
     assign.moved = true
     assign.async = node.async
-    assign.forceNamedFunction = true
+    assign.forceNamedFunction = true if node.unwrapAll() instanceof Code
     dest.push assign
     id
 
@@ -1447,7 +1447,7 @@ exports.Assign = class Assign extends Base
       return @compilePatternMatch o if @variable.isArray() or @variable.isObject()
       return @compileSplice       o if @variable.isSplice()
       return @compileConditional  o if @context in ['||=', '&&=', '?=']
-      return @compileFunction     o if @isFunctionDeclareation() and not o.scope.check(@variable.base.value) and @underCodeBlock or @forceNamedFunction
+      return @compileFunction     o if @isFunctionDeclareation() and (not o.scope.check(@variable.base.value) and @underCodeBlock or @forceNamedFunction)
     compiledName = @variable.compileToFragments o, LEVEL_LIST
     name = fragmentsToText compiledName
     unless @context

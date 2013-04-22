@@ -228,10 +228,10 @@ function _$cb$_0() {
   a: a
   b: b!
   c: c</pre></td>
-	<td width=50% valign=top><pre>var A,
+	<td width=50% valign=top><pre>var A, _$$_1,
   _this = this;
 
-a;
+_$$_1 = a;
 b(function(_$$_2) {
   _$cb$_0({
     a: _$$_1,
