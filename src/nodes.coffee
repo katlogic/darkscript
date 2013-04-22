@@ -292,6 +292,7 @@ exports.Base = class Base
     )
     assign.moved = true
     assign.async = node.async
+    assign.forceNamedFunction = true
     dest.push assign
     id
 
@@ -1472,7 +1473,7 @@ exports.Assign = class Assign extends Base
       return @compilePatternMatch o if @variable.isArray() or @variable.isObject()
       return @compileSplice       o if @variable.isSplice()
       return @compileConditional  o if @context in ['||=', '&&=', '?=']
-      return @compileFunction     o if @isFunctionDeclareation() and not o.scope.check(@variable.base.value) and @underCodeBlock
+      return @compileFunction     o if @isFunctionDeclareation() and not o.scope.check(@variable.base.value) and @underCodeBlock or @forceNamedFunction
     compiledName = @variable.compileToFragments o, LEVEL_LIST
     name = fragmentsToText compiledName
     unless @context
@@ -2811,28 +2812,37 @@ exports.If = class If extends Base
 
   move: (dest, next_body = null) ->
     return @ unless @async
-    if @autocb || next_body
+    if (@autocb || next_body) && @body.async
       @elseBody ?= new Block()
-
-    if next_body
-      if next_body[0].can_forward
-        next = next_body[0].variable
-      else
-        next = Base.move_code dest, next_body
-
-      @flow = {next: next.base.value}
-      for body in [@body, @elseBody]
-        call = new Call(next)
-        call.can_forward = true
-        call.omit_return = true
-        body.push call
 
     # unless @condition?.async return @
     @condition = Base.move(dest, @condition) if @condition?.async
-    @body.move()
-    @elseBody?.move()
+
+    dest.push @
+    if next_body
+      if @body?.async || @elseBody?.async
+        if next_body[0].can_forward
+          next = next_body[0].variable
+        else
+          next = Base.move_code dest, next_body
+          next_fn = dest.pop()
+          next_fn.omit_return = true
+
+          @flow = {next: next.base.value}
+          for body in [@body, @elseBody]
+            call = new Call(next)
+            call.can_forward = true
+            call.omit_return = true
+            body.push call
+        @body.move()
+        @elseBody?.move()
+        dest.push next_fn if next_fn
+      else
+        # body is not async anymore after condition moved
+        dest.push next_body...
+
     @async = false
-    @
+    null
 
 
 exports.AsyncCall = class AsyncCall extends Call
