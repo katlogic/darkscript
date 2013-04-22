@@ -157,7 +157,7 @@ exports.Base = class Base
   # This is what `coffee --nodes` prints out.
   toString: (idt = '', name = @constructor.name) ->
     tree = '\n' + idt + name
-    for v in ['autocb', 'async', 'bound', 'cross', 'moved', 'no_results', 'generated', 'need_return'] when @[v]
+    for v in ['autocb', 'async', 'bound', 'cross', 'moved', 'no_results', 'generated', 'isCodeBlock'] when @[v]
       tree += " [#{v}]"
     if @omit_return
       tree += " [omit]"
@@ -1968,7 +1968,7 @@ exports.While = class While extends Base
     flow = $flows.last()
     answer = [@makeCode @tab]
     names = {
-      body: o.scope.freeVariable('body')
+      body: o.scope.freeVariable('body', false)
     }
 
     # initPart
@@ -1985,6 +1985,7 @@ exports.While = class While extends Base
     # _body(_step)
 
     blocks = new Block([])
+    blocks.isCodeBlock = true
 
     # done, flow.next equals _fn in the most of situation
     if flow.next && !@results_id
@@ -1994,9 +1995,9 @@ exports.While = class While extends Base
         done_body = [new Literal @results_id]
       else
         done_body = []
-      done = names.done = o.scope.freeVariable('done')
+      done = names.done = o.scope.freeVariable('done', false)
       done_fn = new Assign(
-        new Literal(names.done),
+        new Value(new Literal(names.done)),
         new Code([], new Block(done_body), 'boundfunc', flow)
       )
       done_fn.moved = true
@@ -2013,10 +2014,10 @@ exports.While = class While extends Base
       blocks.push info.initPart
 
     if info.stepPart
-      step_name = o.scope.freeVariable('step')
+      step_name = o.scope.freeVariable('step', false)
       # step
       step_fn = new Assign(
-        new Literal(step_name),
+        new Value(new Literal(step_name)),
         new Code([], new Block([
           info.stepPart,
           ret = new Call(new Literal(names.body))
@@ -2033,7 +2034,7 @@ exports.While = class While extends Base
       info.body.unshift(info.varPart)
 
     body_fn = new Assign(
-      new Literal(names.body),
+      new Value(new Literal(names.body)),
       code = new Code([], new Block([
         ifPart = new If(
           info.condPart,
