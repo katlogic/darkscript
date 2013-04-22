@@ -392,8 +392,6 @@ exports.Block = class Block extends Base
   # return the result, and it's an expression, simply return it. If it's a
   # statement, ask the statement to do so.
   compileNode: (o) ->
-    @asyncCompileNode(o)
-
     @tab  = o.indent
     top   = o.level is LEVEL_TOP
     compiledNodes = []
@@ -403,7 +401,7 @@ exports.Block = class Block extends Base
       node = node.unwrapAll()
       node = (node.unfoldSoak(o) or node)
       node.underCodeBlock = @isCodeBlock
-      if node instanceof Block
+      if node instanceof Block || node instanceof FlowBlock
         # This is a nested block. We don't do anything special here like enclose
         # it in a new scope; we just compile the statements in this block along with
         # our own
@@ -430,30 +428,7 @@ exports.Block = class Block extends Base
     else
       answer = [@makeCode "void 0"]
     if compiledNodes.length > 1 and o.level >= LEVEL_LIST then @wrapInBraces answer else answer
-
-  asyncCompileNode: (o) ->
-    return @
-    dest = []
-    while node = @expressions.shift()
-      if node.next && node.constructor.name in ['For', 'If', 'While']
-        next_code = node.next.getCode(o)
-        if next_code.body.isEmpty()
-        else if next_code.body.expressions[0].can_forward
-        else
-          next_name = o.scope.freeVariable('fn')
-          next = new Assign(new Literal(next_name), next_code)
-          node.flow = $flows.clone({next: next_name})
-          dest.push next
-      dest.push node
-    @expressions = dest
-    @
-
-  pop_next_code: (flow, idx) ->
-    block = new Block(@expressions.splice(idx+1))
-    code = new Code([], block, 'boundfunc')
-    code.flow = extend({}, flow)
-    block.async = code.async = true
-    code
+    answer
 
   # If we happen to be the top-level **Block**, wrap everything in
   # a safety closure, unless requested not to.
@@ -2812,38 +2787,48 @@ exports.If = class If extends Base
 
   move: (dest, next_body = null) ->
     return @ unless @async
-    if (@autocb || next_body) && @body.async
+    if @autocb || next_body
       @elseBody ?= new Block()
 
     # unless @condition?.async return @
     @condition = Base.move(dest, @condition) if @condition?.async
+    @body.move()
+    @elseBody?.move()
 
-    dest.push @
     if next_body
-      if @body?.async || @elseBody?.async
-        if next_body[0].can_forward
-          next = next_body[0].variable
-        else
-          next = Base.move_code dest, next_body
-          next_fn = dest.pop()
-          next_fn.omit_return = true
-
-          @flow = {next: next.base.value}
-          for body in [@body, @elseBody]
-            call = new Call(next)
-            call.can_forward = true
-            call.omit_return = true
-            body.push call
-        @body.move()
-        @elseBody?.move()
-        dest.push next_fn if next_fn
+      if next_body[0].can_forward
+        next = next_body[0].variable
       else
-        # body is not async anymore after condition moved
-        dest.push next_body...
+        next = Base.move_code dest, next_body
+
+      @flow = {next: next.base.value}
+      for body in [@body, @elseBody]
+        call = new Call(next)
+        call.can_forward = true
+        call.omit_return = true
+        body.push call
 
     @async = false
-    null
+    if next
+      next_fn = dest.pop()
+      next_fn.omit_return = true
+      dest.push @
+      dest.push next_fn
+      null
+    else
+      @
 
+
+exports.FlowBlock = class FlowBlock extends Base
+  constructor: (@body, @flow) ->
+
+  children: ['body']
+
+  compileNode: (o) ->
+    $flows.push $flows.clone(@flow) if @flow
+    answer = @body.compileNode(o)
+    $flows.pop()
+    answer
 
 exports.AsyncCall = class AsyncCall extends Call
   constructor: (variable, @args = [], @soak) ->
@@ -2869,12 +2854,22 @@ exports.AsyncCall = class AsyncCall extends Call
       id = new Literal uid()
       params = [new Param id]
       next_body.unshift(id)
-    # if next_body.isEmpty()
-    #   next_body.push new Literal('arguments[0]')
-    code = new Code(params, next_body, 'boundfunc')
-    code.cross = true
-    @args.push code
-    node = new Call(@variable, @args, @soak)
+    cb_code = new Code(params, next_body, 'boundfunc')
+    cb_code.cross = true
+    if @variable.base instanceof Code
+      body = new FlowBlock(@variable.base.body, @variable.base.flow)
+      next_name = body.flow.next
+      named_func = new Assign(new Value(new Literal(next_name)), cb_code)
+      named_func.forceNamedFunction = true
+      named_func.omit_return = true
+      node = new Block([
+        body,
+        named_func
+      ])
+      node
+    else
+      @args.push cb_code
+      node = new Call(@variable, @args, @soak)
     node.omit_return = true
     node.transform()
     node

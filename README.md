@@ -16,11 +16,27 @@ ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
 5. Sourcemap Supported.
     * Follow up to CoffeeScript 1.6.2 so far
 6. Safety named-function supported.
+	* Added in ToffeeScript 1.6.2-3
 
 Installation
 ------------
 
     npm install toffee-script
+
+Named Function
+--------------
+ToffeeScript support named function which is differenc from CoffeeScript.
+if the function defined in the first level of code block and the function name haven't been used, then compile it as named function. see Code Examples section
+It won't have compatible issue with CoffeeScript except one case
+
+	# m never declared above, m must be local variable and assign to undefined
+	m()
+	m = ->
+	m
+
+in CoffeeScript will throw exception `undefined is not function`. Use m as constant undefined variable is rare case.
+
+in ToffeeScript function m is hoisted, and will run function m() as Javascript does.
 
 Code Examples
 -------------
@@ -70,10 +86,6 @@ console.log x, y</pre></td>
 	<td width=50% valign=top><pre>var x, y,
   _this = this;
 
-function _$$_0() {
-  return console.log(x, y);
-};
-
 if (i) {
   a(function() {
     x = arguments[0];
@@ -84,7 +96,11 @@ if (i) {
     y = arguments[0];
     _$$_0();
   });
-}</pre></td>
+}
+
+function _$$_0() {
+  return console.log(x, y);
+};</pre></td>
 </tr>
 </table>
 
@@ -98,21 +114,19 @@ foo()</pre></td>
 	<td width=50% valign=top><pre>var e,
   _this = this;
 
-function _$$_0() {
-  return foo();
-};
-
-(function(_$cb$_2) {
-  a(function() {
-    _$cb$_2(e = arguments[0]);
-  });
-})(function(_$$_1) {
-  if (_$$_1) {
+a(function() {
+  _$cb$_2(e = arguments[0]);
+});
+function _$cb$_2(_$$_0) {
+  if (_$$_0) {
     return cb(e);
   } else {
-    _$$_0();
+    _$$_1();
   }
-});</pre></td>
+  function _$$_1() {
+    return foo();
+  };
+};</pre></td>
 </tr>
 </table>
 
@@ -127,21 +141,19 @@ console.log data</pre></td></tr>
 <tr><td width=100%><pre>var data, e,
   _this = this;
 
-function _$$_0() {
-  return console.log(data);
-};
-
-(function(_$cb$_2) {
-  fs.readFile('foo', function() {
-    _$cb$_2((e = arguments[0], data = arguments[1], e));
-  });
-})(function(_$$_1) {
-  if (_$$_1) {
+fs.readFile('foo', function() {
+  _$cb$_2((e = arguments[0], data = arguments[1], e));
+});
+function _$cb$_2(_$$_0) {
+  if (_$$_0) {
     return cb(e);
   } else {
-    _$$_0();
+    _$$_1();
   }
-});</pre></td></tr>
+  function _$$_1() {
+    return console.log(data);
+  };
+};</pre></td></tr>
 </table>
 
 ### Loop
@@ -152,37 +164,35 @@ Support For In, For Of, While with guard `when`
 	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
   a!
   # return arguments[0] in default</pre></td>
-	<td width=50% valign=top><pre>var i, xs,
+	<td width=50% valign=top><pre>var i, xs, _$res$_1, _i,
   _this = this;
 
-(function(_$cb$_0) {
-  var _$res$_1, _body, _done, _i, _step;
-  _$res$_1 = [];
-  i = _i = 1;
-  _step = function() {
-    i = ++_i;
-    _body();
-  };
-  _body = function() {
-    if (_i &lt;= 3) {
-      if (i &gt; 2) {
-        a(function(_$$_2) {
-          _step(_$res$_1.push(_$$_2));
-        });
-      } else {
-        _step();
-      }
-    } else {
-      _done();
-    }
-  };
-  _done = function() {
-    _$cb$_0(_$res$_1);
-  };
+_$res$_1 = [];
+i = _i = 1;
+function _step() {
+  i = ++_i;
   _body();
-})(function() {
+};
+function _body() {
+  if (_i &lt;= 3) {
+    if (i &gt; 2) {
+      a(function(_$$_2) {
+        _step(_$res$_1.push(_$$_2));
+      });
+    } else {
+      _step();
+    }
+  } else {
+    _done();
+  }
+};
+function _done() {
+  _$cb$_0(_$res$_1);
+};
+_body();
+function _$cb$_0() {
   return xs = arguments[0];
-});</pre></td>
+};</pre></td>
 </tr>
 </table>
 
@@ -194,21 +204,19 @@ Support For In, For Of, While with guard `when`
 	<td width=50% valign=top><pre>var x,
   _this = this;
 
-(function(_$cb$_0) {
-  a(function(_$$_1) {
-    (function(_$cb$_2) {
-      b(function(_$$_3) {
-        c(function(_$$_4) {
-          _$cb$_2(_$$_3 * _$$_4);
-        });
-      });
-    })(function(_$$_5) {
-      _$cb$_0(_$$_1 + _$$_5);
+a(function(_$$_1) {
+  b(function(_$$_3) {
+    c(function(_$$_4) {
+      _$cb$_2(_$$_3 * _$$_4);
     });
   });
-})(function() {
+  function _$cb$_2(_$$_5) {
+    _$cb$_0(_$$_1 + _$$_5);
+  };
+});
+function _$cb$_0() {
   return x = arguments[0];
-});</pre></td>
+};</pre></td>
 </tr>
 </table>
 
@@ -223,19 +231,17 @@ Support For In, For Of, While with guard `when`
 	<td width=50% valign=top><pre>var A,
   _this = this;
 
-(function(_$cb$_0) {
-  var _$$_1;
-  _$$_1 = a;
-  b(function(_$$_2) {
-    _$cb$_0({
-      a: _$$_1,
-      b: _$$_2,
-      c: c
-    });
+a;
+b(function(_$$_2) {
+  _$cb$_0({
+    a: _$$_1,
+    b: _$$_2,
+    c: c
   });
-})(function() {
+});
+function _$cb$_0() {
   return A = arguments[0];
-});</pre></td>
+};</pre></td>
 </tr>
 </table>
 
@@ -249,24 +255,22 @@ console.log x</pre></td>
 	<td width=50% valign=top><pre>var x,
   _this = this;
 
-(function(_$cb$_0) {
-  (function(_$cb$_3) {
-    a(function(_$$_1) {
-      if (_$$_1) {
-        _$cb$_3(_$$_1);
-      } else {
-        b(function(_$$_2) {
-          _$cb$_3(_$$_2);
-        });
-      }
+a(function(_$$_1) {
+  if (_$$_1) {
+    _$cb$_3(_$$_1);
+  } else {
+    b(function(_$$_2) {
+      _$cb$_3(_$$_2);
     });
-  })(function(_$$_4) {
-    _$cb$_0(_$$_4);
-  });
-})(function() {
+  }
+});
+function _$cb$_3(_$$_4) {
+  _$cb$_0(_$$_4);
+};
+function _$cb$_0() {
   x = arguments[0];
   return console.log(x);
-});</pre></td>
+};</pre></td>
 </tr>
 </table>
 
@@ -312,17 +316,21 @@ if ((__matches = a.match(b)) || (__matches = b.match(c))) {
 
 ### Named Function Supported
 
+
 <table width=100%>
 <tr>
 	<td width=50% valign=top><pre>a = -&gt;
+b = ->
 null</pre></td>
 	<td width=50% valign=top><pre>function a() {};
+
+function b() {};
 
 null;</pre></td>
 </tr>
 </table>
 
-Only compile under code block, any condition, call will keep in non-named function
+Those cases will be kept in non-named function
 
 <table width=100%>
 <tr>
