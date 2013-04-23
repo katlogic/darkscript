@@ -8,19 +8,18 @@ describe 'object', ->
 				y: b!
 				c: d
 		""", """
-			var A, c, x, y,
-				_this = this;
-			(function(_$cb$_0) {
-				var _$$_1;
-				_$$_1 = a;
-				b(function(_$$_2) {
-					_$cb$_0({
-						x: _$$_1,
-						y: _$$_2,
-						c: d
-					});
-				});
-			})(function() {
-				return A = arguments[0];
+			var A, _$$_1,
+			  _this = this;
+
+			_$$_1 = a;
+			b(function(_$$_2) {
+			  _$cb$_0({
+				x: _$$_1,
+				y: _$$_2,
+				c: d
+			  });
 			});
+			function _$cb$_0() {
+			  return A = arguments[0];
+			};
 		"""

@@ -3,10 +3,10 @@
 describe 'autocb', ->
 	it 'simple', ->
 		code_eq "x = (autocb)->", """
-			var x
-			x = function(autocb) {
-				autocb();
-			}
+			function x(autocb) {
+			  autocb();
+			};
+
 		"""
 
 	it 'simple 2', ->
@@ -14,31 +14,28 @@ describe 'autocb', ->
 			x = (autocb) ->
 				y!
 		""", """
-			var x
-			x = function(autocb){
-				var _this = this
-				y(function(v) {
-					autocb(v);
-				});
-			}
+			function x(autocb) {
+			  var _this = this;
+			  y(function(_$$_0) {
+				autocb(_$$_0);
+			  });
+			};
 		"""
 	it 'simple 3', ->
 		code_eq """
 			x = (autocb) ->
 				x = y!
 		""", """
-			var x
-			x = function(autocb){
-				var _this = this
-				y(function() {
-					autocb(x = arguments[0]);
-				});
-			}
+			function x(autocb) {
+			  var _this = this;
+			  y(function() {
+				autocb(x = arguments[0]);
+			  });
+			};
 		"""
 	it 'empty return', ->
 		code_eq "x = (autocb)-> return", """
-			var x
-			x = function(autocb) {
-				return autocb();
-			}
+			function x(autocb) {
+			  return autocb();
+			};
 		"""

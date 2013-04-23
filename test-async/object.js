@@ -5,6 +5,6 @@ _ref = require('./helper'), p = _ref.p, code_eq = _ref.code_eq;
 
 describe('object', function() {
   return it('simple', function() {
-    return code_eq("A =\n	x: a\n	y: b!\n	c: d", "var A, c, x, y,\n	_this = this;\n(function(_$cb$_0) {\n	var _$$_1;\n	_$$_1 = a;\n	b(function(_$$_2) {\n		_$cb$_0({\n			x: _$$_1,\n			y: _$$_2,\n			c: d\n		});\n	});\n})(function() {\n	return A = arguments[0];\n});");
+    return code_eq("A =\n	x: a\n	y: b!\n	c: d", "var A, _$$_1,\n  _this = this;\n\n_$$_1 = a;\nb(function(_$$_2) {\n  _$cb$_0({\n	x: _$$_1,\n	y: _$$_2,\n	c: d\n  });\n});\nfunction _$cb$_0() {\n  return A = arguments[0];\n};");
   });
 });

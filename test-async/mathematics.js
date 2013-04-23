@@ -8,9 +8,9 @@ describe('mathmatics', function() {
     return code_eq("a! + b!", "a(function(_$$_0) {\n	b(function(_$$_1) {\n		return _$$_0 + _$$_1;\n	});\n});");
   });
   it('assign', function() {
-    return code_eq("x = a! + b!", "var x;\n(function(_$cb$_0) {\n	a(function(_$$_1) {\n		b(function(_$$_2) {\n			_$cb$_0(_$$_1 + _$$_2);\n		});\n	});\n})(function() {\n	return x = arguments[0];\n});");
+    return code_eq("x = a! + b!", "var x,\n  _this = this;\n\na(function(_$$_1) {\n  b(function(_$$_2) {\n	_$cb$_0(_$$_1 + _$$_2);\n  });\n});\nfunction _$cb$_0() {\n  return x = arguments[0];\n};\n");
   });
   return it('mix async and sync', function() {
-    return code_eq("x = a + b + c! + d + e", "var x;\n(function(_$cb$_0) {\n	(function(_$cb$_1) {\n		(function(_$cb$_2) {\n			(function(_$cb$_3) {\n				_$cb$_3(a + b);\n			})(function(_$$_4) {\n				c(function(_$$_5) {\n					_$cb$_2(_$$_4 + _$$_5);\n				});\n			});\n		})(function(_$$_6) {\n			_$cb$_1(_$$_6 + d);\n		});\n	})(function(_$$_7) {\n		_$cb$_0(_$$_7 + e);\n	});\n})(function() {\n	return x = arguments[0];\n});");
+    return code_eq("x = a + b + c! + d + e", "var x,\n  _this = this;\n\na + b;\nfunction _$cb$_3(_$$_4) {\n  c(function(_$$_5) {\n	_$cb$_2(_$$_4 + _$$_5);\n  });\n};\nfunction _$cb$_2(_$$_6) {\n  _$cb$_1(_$$_6 + d);\n};\nfunction _$cb$_1(_$$_7) {\n  _$cb$_0(_$$_7 + e);\n};\nfunction _$cb$_0() {\n  return x = arguments[0];\n};\n");
   });
 });

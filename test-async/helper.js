@@ -32,11 +32,11 @@ code_eq = function(src_orig, dest_orig) {
     return assert.equal(src, dest);
   } catch (_error) {
     e = _error;
-    console.log("<<<<");
+    console.log("<<<< src_orig");
     console.log(src_orig);
-    console.log('----');
+    console.log('---- \x1b[32msrc_gened\x1b[0m');
     console.log(src_gened);
-    console.log("----");
+    console.log("---- dest_wrapped");
     console.log(dest_wrapped);
     console.log(">>>>");
     throw e;

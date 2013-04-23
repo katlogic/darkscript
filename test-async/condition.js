@@ -5,40 +5,40 @@ _ref = require('./helper'), p = _ref.p, code_eq = _ref.code_eq;
 
 describe('if', function() {
   it('simple', function() {
-    return code_eq("if a\n	b!\nc", "var fn;\nfn = function() {\n	return c\n}\nif (a) {\n		b(function() {\n			fn()\n		})\n} else {\n	fn()\n}");
+    return code_eq("if a\n	b!\nc", "var _this = this;\n\nif (a) {\n  b(function() {\n	_$$_0();\n  });\n} else {\n  _$$_0();\n}\n\nfunction _$$_0() {\n  return c;\n};");
   });
   it('nested normal', function() {
-    return code_eq("if a\n	if b\n		c!\n	d\nelse\n	e!\nf!", "var f1, f2\nf1 = function() {\n	f(function(v) {\n		return v\n	})\n}\n\nif (a) {\n	f2 = function() {\n		d\n		f1()\n	}\n	if (b) {\n		c(function() {\n			f2()\n		})\n	} else {\n		f2()\n	}\n} else {\n	e(function() {\n		f1()\n	})\n}");
+    return code_eq("if a\n	if b\n		c!\n	d\nelse\n	e!\nf!", "var _this = this;\n\nif (a) {\n  if (b) {\n	c(function() {\n	  _$$_1();\n	});\n  } else {\n	_$$_1();\n  }\n  function _$$_1() {\n	d;\n	_$$_0();\n  };\n} else {\n  e(function() {\n	_$$_0();\n  });\n}\n\nfunction _$$_0() {\n  f(function(_$$_2) {\n	return _$$_2;\n  });\n};");
   });
   it('nested forward', function() {
-    return code_eq("if a\n	if b\n		c!\nd", "var f1;\nf1 = function() {\n	return d\n}\nif (a) {\n	if (b) {\n		c(function() {\n			f1()\n		})\n	} else {\n		f1()\n	}\n} else {\n	f1()\n}");
+    return code_eq("if a\n	if b\n		c!\nd", "var _this = this;\n\nif (a) {\n  if (b) {\n	c(function() {\n	  _$$_0();\n	});\n  } else {\n	_$$_0();\n  }\n} else {\n  _$$_0();\n}\n\nfunction _$$_0() {\n  return d;\n};");
   });
   it('nested partial', function() {
-    return code_eq("if a\n	x!\n	if b\n		return\nx", "var _fn;\n_fn = function() {\n	return x;\n}\n\nif (a) {\n	x(function() {\n		if (b) {\n			return;\n		}\n		_fn();\n	})\n} else {\n	_fn();\n}");
+    return code_eq("if a\n	x!\n	if b\n		return\nx", "var _this = this;\n\nif (a) {\n  x(function() {\n	if (b) {\n	  return;\n	}\n	_$$_0();\n  });\n} else {\n  _$$_0();\n}\n\nfunction _$$_0() {\n  return x;\n};");
   });
   it('if with async condition', function() {
-    return code_eq("if e = a!\n	b", "var e,\n	_this = this;\n\n(function(_$cb$_1) {\n	a(function() {\n		_$cb$_1(e = arguments[0]);\n	});\n})(function(_$$_0) {\n	if (_$$_0) {\n		return b;\n	}\n});");
+    return code_eq("if e = a!\n	b", "var e,\n  _this = this;\n\na(function() {\n  _$cb$_1(e = arguments[0]);\n});\nfunction _$cb$_1(_$$_0) {\n  if (_$$_0) {\n	return b;\n  }\n};");
   });
   return it('if with async condition multi return', function() {
-    return code_eq("if e, x = a!\n	b", "var e, x,\n	_this = this;\n\n(function(_$cb$_1) {\n	a(function() {\n		_$cb$_1((e = arguments[0], x = arguments[1], e));\n	});\n})(function(_$$_0) {\n	if (_$$_0) {\n		return b;\n	}\n});");
+    return code_eq("if e, x = a!\n	b", "var e, x,\n  _this = this;\n\na(function() {\n  _$cb$_1((e = arguments[0], x = arguments[1], e));\n});\nfunction _$cb$_1(_$$_0) {\n  if (_$$_0) {\n	return b;\n  }\n};");
   });
 });
 
 describe('if + autocb', function() {
   it('simple', function() {
-    return code_eq("x = (autocb) ->\n	if a\n		b!", "var x\nx = function(autocb) {\n	if (a) {\n		b(function(v) {\n			autocb(v)\n		})\n	} else {\n		autocb()\n	}\n}");
+    return code_eq("x = (autocb) ->\n	if a\n		b!", "function x(autocb) {\n  var _this = this;\n  if (a) {\n	b(function(_$$_0) {\n	  autocb(_$$_0);\n	});\n  } else {\n	autocb();\n  }\n};");
   });
   it('with args', function() {
-    return code_eq("x = (autocb) ->\n	if a\n		y = b!\n		y", "var x\nx = function(autocb) {\n	var y\n	if (a) {\n		b(function() {\n			y = arguments[0]\n			autocb(y)\n		})\n	} else {\n		autocb()\n	}\n}");
+    return code_eq("x = (autocb) ->\n	if a\n		y = b!\n		y", "function x(autocb) {\n  var y,\n	_this = this;\n  if (a) {\n	b(function() {\n	  y = arguments[0];\n	  autocb(y);\n	});\n  } else {\n	autocb();\n  }\n};");
   });
   return it('have next', function() {
-    return code_eq("x = (autocb) ->\n	if a\n		y = b!\n	y", "var x\nx = function(autocb) {\n	var y, _fn\n	_fn = function() {\n		autocb(y)\n	}\n	if (a) {\n		b(function() {\n			y = arguments[0]\n			_fn()\n		})\n	} else {\n		_fn()\n	}\n\n}");
+    return code_eq("x = (autocb) ->\n	if a\n		y = b!\n	y", "function x(autocb) {\n  var y,\n	_this = this;\n  if (a) {\n	b(function() {\n	  y = arguments[0];\n	  _$$_0();\n	});\n  } else {\n	_$$_0();\n  }\n  function _$$_0() {\n	autocb(y);\n  };\n};");
   });
 });
 
 describe('switch', function() {
   it('simple', function() {
-    return code_eq("switch x\n	when 'a'\n		a()\n	when 'b'\n		b!\n	else\n		c!\nnull", "(function(_$cb$_0) {\n	switch (x) {\n		case 'a':\n			_$cb$_0(a());\n			break;\n		case 'b':\n			b(function(_$$_1) {\n				_$cb$_0(_$$_1);\n			});\n			break;\n		default:\n			c(function(_$$_2) {\n				_$cb$_0(_$$_2);\n			});\n	}\n})(function() {\n	return null;\n});");
+    return code_eq("switch x\n	when 'a'\n		a()\n	when 'b'\n		b!\n	else\n		c!\nnull", "var _this = this;\n\nswitch (x) {\n  case 'a':\n	_$cb$_0(a());\n	break;\n  case 'b':\n	b(function(_$$_1) {\n	  _$cb$_0(_$$_1);\n	});\n	break;\n  default:\n	c(function(_$$_2) {\n	  _$cb$_0(_$$_2);\n	});\n}\nfunction _$cb$_0() {\n  return null;\n};\n");
   });
   return it('ends with if', function() {
     return code_eq("(autocb) ->\n	if a\n		x!\n		if e\n			return a", "(function(autocb) {\n	var _this = this;\n	if (a) {\n		x(function() {\n			if (e) {\n				return autocb(a);\n			} else {\n				autocb();\n			}\n		});\n	} else {\n		autocb();\n	}\n});");

@@ -7,29 +7,27 @@ describe 'for', ->
 				x!
 			null
 		""", """
-			var i,
-				_this = this;
+			var i, _i,
+			  _this = this;
 
-			(function(_$cb$_0) {
-				var _body, _i, _step;
-				i = _i = 1;
-				_step = function() {
-					i = ++_i;
-					_body();
-				};
-				_body = function() {
-					if (_i <= 3) {
-						x(function(_$$_1) {
-							_step(_$$_1);
-						});
-					} else {
-						_$cb$_0();
-					}
-				};
-				_body();
-			})(function() {
-				return null;
-			});
+			i = _i = 1;
+			function _step() {
+			  i = ++_i;
+			  _body();
+			};
+			function _body() {
+			  if (_i <= 3) {
+				x(function(_$$_1) {
+				  _step(_$$_1);
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
 		"""
 
 	it 'returns', ->
@@ -38,32 +36,32 @@ describe 'for', ->
 				x!
 			null
 		""", """
-			var i, xs;
-			(function(cb) {
-				var res, _body, _done, _i, _step;
-				res = []
-				i = _i = 1;
-				_step = function() {
-					i = ++_i;
-					_body();
-				}
-				_body = function() {
-					if (_i <= 3) {
-						x(function(v) {
-							_step(res.push(v));
-						});
-					} else {
-						_done();
-					}
-				}
-				_done = function() {
-					cb(res);
-				}
-				_body();
-			})(function() {
-				xs = arguments[0]
-				return null;
-			});
+			var i, xs, _$res$_1, _i,
+			  _this = this;
+
+			_$res$_1 = [];
+			i = _i = 1;
+			function _step() {
+			  i = ++_i;
+			  _body();
+			};
+			function _body() {
+			  if (_i <= 3) {
+				x(function(_$$_2) {
+				  _step(_$res$_1.push(_$$_2));
+				});
+			  } else {
+				_done();
+			  }
+			};
+			function _done() {
+			  _$cb$_0(_$res$_1);
+			};
+			_body();
+			function _$cb$_0() {
+			  xs = arguments[0];
+			  return null;
+			};
 		"""
 
 	it 'guard', ->
@@ -72,31 +70,31 @@ describe 'for', ->
 				x!
 			null
 		""", """
-			var i;
-			(function(cb) {
-				var _body, _i, _step;
-				i = _i = 1;
-				_step = function() {
-					i = ++_i;
-					_body();
+			var i, _i,
+			  _this = this;
+
+			i = _i = 1;
+			function _step() {
+			  i = ++_i;
+			  _body();
+			};
+			function _body() {
+			  if (_i <= 3) {
+				if (i > 10) {
+				  x(function(_$$_1) {
+					_step(_$$_1);
+				  });
+				} else {
+				  _step();
 				}
-				_body = function() {
-					if (_i <= 3) {
-						if (i > 10) {
-							x(function(v) {
-								_step(v);
-							});
-						} else {
-							_step();
-						}
-					} else {
-						cb()
-					}
-				}
-				_body();
-			})(function() {
-				return null;
-			});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
 		"""
 	it 'pluckdirectcall', ->
 		code_eq """
@@ -104,29 +102,27 @@ describe 'for', ->
 				c = b!
 			null
 		""", """
-			var c, i,
-				_this = this;
+			var c, i, _i,
+			  _this = this;
 
-			(function(_$cb$_0) {
-				var _body, _i, _step;
-				i = _i = 1;
-				_step = function() {
-					i = ++_i;
-					_body();
-				};
-				_body = function() {
-					if (_i <= 10) {
-						b(function() {
-							_step(c = arguments[0]);
-						});
-					} else {
-						_$cb$_0();
-					}
-				};
-				_body();
-			})(function() {
-				return null;
-			});
+			i = _i = 1;
+			function _step() {
+			  i = ++_i;
+			  _body();
+			};
+			function _body() {
+			  if (_i <= 10) {
+				b(function() {
+				  _step(c = arguments[0]);
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
 		"""
 
 	it 'end with async condition', ->
@@ -135,42 +131,39 @@ describe 'for', ->
 				if y = b
 					z = c!
 		""", """
-			var res, x, y, z,
+			var res, x, y, z, _$res$_1, _i, _len,
 			  _this = this;
 
-			(function(_$cb$_0) {
-			  var _$res$_1, _body, _done, _i, _len, _step;
-			  _$res$_1 = [];
-			  _i = 0, _len = a.length;
-			  _step = function() {
-				_i++;
-				_body();
-			  };
-			  _body = function() {
-				if (_i < _len) {
-				  x = a[_i];
-				  if (y = b) {
-					(function(_$cb$_3) {
-					  c(function() {
-						_$cb$_3(z = arguments[0]);
-					  });
-					})(function(_$$_2) {
-					  _step(_$res$_1.push(_$$_2));
-					});
-				  } else {
-					_step(_$res$_1.push(void 0));
-				  }
-				} else {
-				  _done();
-				}
-			  };
-			  _done = function() {
-				_$cb$_0(_$res$_1);
-			  };
+			_$res$_1 = [];
+			_i = 0, _len = a.length;
+			function _step() {
+			  _i++;
 			  _body();
-			})(function() {
+			};
+			function _body() {
+			  if (_i < _len) {
+				x = a[_i];
+				if (y = b) {
+				  c(function() {
+					_$cb$_3(z = arguments[0]);
+				  });
+				  function _$cb$_3(_$$_2) {
+					_step(_$res$_1.push(_$$_2));
+				  };
+				} else {
+				  _step(_$res$_1.push(void 0));
+				}
+			  } else {
+				_done();
+			  }
+			};
+			function _done() {
+			  _$cb$_0(_$res$_1);
+			};
+			_body();
+			function _$cb$_0() {
 			  return res = arguments[0];
-			});
+			};
 		"""
 
 	it 'nested for', ->
@@ -180,48 +173,45 @@ describe 'for', ->
 					c!
 			null
 		""", """
-			var x, y,
+			var x, y, _i, _len,
 			  _this = this;
 
-			(function(_$cb$_1) {
-			  var _body, _i, _len, _step;
-			  _i = 0, _len = a.length;
-			  _step = function() {
-				_i++;
-				_body();
-			  };
-			  _body = function() {
-				if (_i < _len) {
-				  x = a[_i];
-				  (function(_$cb$_0) {
-					var _body1, _j, _len1, _step1;
-					_j = 0, _len1 = b.length;
-					_step1 = function() {
-					  _j++;
-					  _body1();
-					};
-					_body1 = function() {
-					  if (_j < _len1) {
-						y = b[_j];
-						c(function(_$$_3) {
-						  _step1(_$$_3);
-						});
-					  } else {
-						_$cb$_0();
-					  }
-					};
-					_body1();
-				  })(function(_$$_2) {
-					_step(_$$_2);
-				  });
-				} else {
-				  _$cb$_1();
-				}
-			  };
+			_i = 0, _len = a.length;
+			function _step() {
+			  _i++;
 			  _body();
-			})(function() {
+			};
+			function _body() {
+			  var _j, _len1;
+			  if (_i < _len) {
+				x = a[_i];
+				_j = 0, _len1 = b.length;
+				function _step1() {
+				  _j++;
+				  _body1();
+				};
+				function _body1() {
+				  if (_j < _len1) {
+					y = b[_j];
+					c(function(_$$_3) {
+					  _step1(_$$_3);
+					});
+				  } else {
+					_$cb$_0();
+				  }
+				};
+				_body1();
+				function _$cb$_0(_$$_2) {
+				  _step(_$$_2);
+				};
+			  } else {
+				_$cb$_1();
+			  }
+			};
+			_body();
+			function _$cb$_1() {
 			  return null;
-			});
+			};
 		"""
 
 	it 'contain defPart', ->
@@ -230,31 +220,29 @@ describe 'for', ->
 				c!
 			null
 		""", """
-			var x,
+			var x, _i, _len, _ref,
 			  _this = this;
 
-			(function(_$cb$_0) {
-			  var _body, _i, _len, _ref, _step;
-				_ref = a.b;
-			  _i = 0, _len = _ref.length;
-			  _step = function() {
-				_i++;
-				_body();
-			  };
-			  _body = function() {
-				if (_i < _len) {
-				  x = _ref[_i];
-				  c(function(_$$_1) {
-					_step(_$$_1);
-				  });
-				} else {
-				  _$cb$_0();
-				}
-			  };
+			  _ref = a.b;
+			_i = 0, _len = _ref.length;
+			function _step() {
+			  _i++;
 			  _body();
-			})(function() {
+			};
+			function _body() {
+			  if (_i < _len) {
+				x = _ref[_i];
+				c(function(_$$_1) {
+				  _step(_$$_1);
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
 			  return null;
-			});
+			};
 		"""
 
 	it 'for own width defPart', ->
@@ -263,7 +251,7 @@ describe 'for', ->
 				c!
 			null
 		""", """
-			var k, v, _$$_0, _$$_1, _$$_2,
+			var k, v, _$$_0, _$$_1, _$$_2, _i, _len,
 			  __hasProp = {}.hasOwnProperty,
 			  _this = this;
 
@@ -279,28 +267,26 @@ describe 'for', ->
 			  return _results;
 			})();
 
-			(function(_$cb$_3) {
-			  var _body, _i, _len, _step;
-			  _i = 0, _len = _$$_2.length;
-			  _step = function() {
-				_i++;
-				_body();
-			  };
-			  _body = function() {
-				if (_i < _len) {
-				  k = _$$_2[_i];
-				  v = _$$_1[k];
-				  c(function(_$$_4) {
-					_step(_$$_4);
-				  });
-				} else {
-				  _$cb$_3();
-				}
-			  };
+			_i = 0, _len = _$$_2.length;
+			function _step() {
+			  _i++;
 			  _body();
-			})(function() {
+			};
+			function _body() {
+			  if (_i < _len) {
+				k = _$$_2[_i];
+				v = _$$_1[k];
+				c(function(_$$_4) {
+				  _step(_$$_4);
+				});
+			  } else {
+				_$cb$_3();
+			  }
+			};
+			_body();
+			function _$cb$_3() {
 			  return null;
-			});
+			};
 		"""
 
 describe 'while', ->
@@ -310,21 +296,21 @@ describe 'while', ->
 				x!
 			null
 		""", """
-			(function(cb) {
-				var _body;
-				_body = function() {
-					if (true) {
-						x(function(v) {
-							_body(v);
-						});
-					} else {
-						cb();
-					}
-				}
-				_body();
-			})(function() {
-				return null;
-			});
+			var _this = this;
+
+			function _body() {
+			  if (true) {
+				x(function(_$$_1) {
+				  _body(_$$_1);
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
 		"""
 
 	it 'returns', ->
@@ -333,27 +319,27 @@ describe 'while', ->
 				x!
 			null
 		""", """
-			var xs;
-			(function(cb) {
-				var res, _body, _done;
-				res = []
-				_body = function() {
-					if (true) {
-						x(function(v) {
-							_body(res.push(v));
-						});
-					} else {
-						cb();
-					}
-				}
-				_done = function() {
-					cb(res);
-				}
-				_body();
-			})(function() {
-				xs = arguments[0]
-				return null;
-			});
+			var xs, _$res$_1,
+			  _this = this;
+
+			_$res$_1 = [];
+			function _body() {
+			  if (true) {
+				x(function(_$$_2) {
+				  _body(_$res$_1.push(_$$_2));
+				});
+			  } else {
+				_done();
+			  }
+			};
+			function _done() {
+			  _$cb$_0(_$res$_1);
+			};
+			_body();
+			function _$cb$_0() {
+			  xs = arguments[0];
+			  return null;
+			};
 		"""
 
 	it 'for own of', ->
@@ -362,40 +348,38 @@ describe 'while', ->
 				x!
 			null
 		""", """
-			var k, v, _$$_0, _$$_1,
-				__hasProp = {}.hasOwnProperty,
-			_this = this;
+			var k, v, _$$_0, _$$_1, _i, _len,
+			  __hasProp = {}.hasOwnProperty,
+			  _this = this;
 
 			_$$_1 = (function() {
-				var _results;
-				_results = [];
-				for (_$$_0 in vs) {
-					if (!__hasProp.call(vs, _$$_0)) continue;
-						_results.push(_$$_0);
-				}
-				return _results;
+			  var _results;
+			  _results = [];
+			  for (_$$_0 in vs) {
+				if (!__hasProp.call(vs, _$$_0)) continue;
+				_results.push(_$$_0);
+			  }
+			  return _results;
 			})();
 
-			(function(_$cb$_2) {
-				var _body, _i, _len, _step;
-				_i = 0, _len = _$$_1.length;
-				_step = function() {
-					_i++;
-					_body();
-				};
-				_body = function() {
-					if (_i < _len) {
-						k = _$$_1[_i];
-						v = vs[k];
-						x(function(_$$_3) {
-							_step(_$$_3);
-						});
-					} else {
-						_$cb$_2();
-					}
-				};
-				_body();
-			})(function() {
-				return null;
-			});
+			_i = 0, _len = _$$_1.length;
+			function _step() {
+			  _i++;
+			  _body();
+			};
+			function _body() {
+			  if (_i < _len) {
+				k = _$$_1[_i];
+				v = vs[k];
+				x(function(_$$_3) {
+				  _step(_$$_3);
+				});
+			  } else {
+				_$cb$_2();
+			  }
+			};
+			_body();
+			function _$cb$_2() {
+			  return null;
+			};
 		"""
