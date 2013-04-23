@@ -2791,14 +2791,12 @@ exports.If = class If extends Base
 
     # unless @condition?.async return @
     @condition = Base.move(dest, @condition) if @condition?.async
-    @body.move()
-    @elseBody?.move()
-
     if next_body
       if next_body[0].can_forward
         next = next_body[0].variable
       else
         next = Base.move_code dest, next_body
+        next_fn = dest.pop()
 
       @flow = {next: next.base.value}
       for body in [@body, @elseBody]
@@ -2807,9 +2805,11 @@ exports.If = class If extends Base
         call.omit_return = true
         body.push call
 
+    @body.move()
+    @elseBody?.move()
+
     @async = false
-    if next
-      next_fn = dest.pop()
+    if next_fn
       next_fn.omit_return = true
       dest.push @
       dest.push next_fn
