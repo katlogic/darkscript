@@ -2687,7 +2687,11 @@ exports.Switch = class Switch extends Base
     @subject = @subject.move(dest)
     for [conditions, block], i in @cases
       @error('condition cannot be async') if conditions.async
-      block.move()
+      unless block.async
+        # use return instead of break  if it isn't async
+        block.makeReturn()
+      else
+        block.move()
     @otherwise?.move()
     @async = false
     @wrapped = true # used for break checking
