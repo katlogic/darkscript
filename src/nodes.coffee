@@ -1904,6 +1904,7 @@ exports.While = class While extends Base
   # *while* can be used as a part of a larger expression -- while loops may
   # return an array containing the computed result of each iteration.
   compileNode: (o) ->
+    $flows.push $flows.clone({continue:null,break:null}) unless @async
     info = {}
     if @results_id?
       @returns = false
@@ -1936,6 +1937,7 @@ exports.While = class While extends Base
       @makeCode(") {"), body, @makeCode("}")
     if @returns
       answer.push @makeCode "\n#{@tab}return #{rvar};"
+    $flows.pop() unless @async
     answer
 
   asyncCompileNode: (o, info) ->
@@ -2466,6 +2468,7 @@ exports.For = class For extends While
   # comprehensions. Some of the generated code can be shared in common, and
   # some cannot.
   compileNode: (o) ->
+    $flows.push $flows.clone({continue:null,break:null}) unless @async
     flow = $flows.last()
     info = {}
 
@@ -2561,9 +2564,11 @@ exports.For = class For extends While
     bodyFragments = body.compileToFragments merge(o, indent: idt1), LEVEL_TOP
     if bodyFragments and (bodyFragments.length > 0)
       bodyFragments = [].concat @makeCode("\n"), bodyFragments, @makeCode("\n")
-    [].concat defPartFragments, @makeCode("#{resultPart or ''}#{@tab}for ("),
+    answer = [].concat defPartFragments, @makeCode("#{resultPart or ''}#{@tab}for ("),
       forPartFragments, @makeCode(") {#{guardPart}#{varPart}"), bodyFragments,
       @makeCode("#{@tab}}#{returnResult or ''}")
+    $flows.pop() unless @async
+    answer
 
 
   pluckDirectCall: (o, body) ->

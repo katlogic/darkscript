@@ -383,3 +383,44 @@ describe 'while', ->
 			  return null;
 			};
 		"""
+
+	it 'nested for with break', ->
+		code_eq """
+			while true
+				a!
+				for i in a
+					if i < 10
+						continue
+					else
+						break
+				b!
+			null
+		""", """
+			var i,
+			  _this = this;
+
+			function _body() {
+			  if (true) {
+				a(function() {
+				  var _i, _len;
+				  for (_i = 0, _len = a.length; _i < _len; _i++) {
+					i = a[_i];
+					if (i < 10) {
+					  continue;
+					} else {
+					  break;
+					}
+				  }
+				  b(function(_$$_1) {
+					_body(_$$_1);
+				  });
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
+		"""
