@@ -2705,6 +2705,8 @@ exports.Switch = class Switch extends Base
         block.makeReturn()
       else
         block.move()
+    if @otherwise && !@otherwise.async
+      @otherwise.makeReturn()
     @otherwise?.move()
     @async = false
     @wrapped = true # used for break checking
