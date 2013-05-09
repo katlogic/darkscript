@@ -602,6 +602,11 @@ exports.Literal = class Literal extends Base
       ).compileToFragments(o, LEVEL_TOP)
       $flows.pop()
       return answer
+    if @value in ['_break', '_continue']
+      unless flow[@value]
+        @error("unexpected #{@value}")
+      answer = [@makeCode flow[@value]]
+      return answer
 
     code = if @value is 'this'
       if o.scope.method?.bound then o.scope.method.context else @value
@@ -1684,7 +1689,10 @@ exports.Code = class Code extends Base
     o.indent        += TAB
     delete o.bare
     delete o.isExistentialEquals
+    prev_flow = $flows.last() || {}
     flow = if @cross then $flows.clone(@flow) else @flow || {}
+    flow._break ?= prev_flow._break
+    flow._continue ?= prev_flow._continue
     flow.scope = o.scope unless @cross
     $flows.push(flow)
     params = []
@@ -2019,7 +2027,7 @@ exports.While = class While extends Base
         ).addElse(
           ret = new Call(new Literal(done))
         )
-      ]), 'boundfunc', {next: step_name, return: flow.return, break: done, continue: step_name})
+      ]), 'boundfunc', {next: step_name, return: flow.return, break: done, continue: step_name, _break: done, _continue: step_name})
     )
     body_fn.moved = true
 
