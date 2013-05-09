@@ -40,6 +40,9 @@ describe('switch', function() {
   it('simple', function() {
     return code_eq("switch x\n	when 'a'\n		a()\n	when 'b'\n		b!\n	else\n		c!\nnull", "var _this = this;\n\nswitch (x) {\n  case 'a':\n	_$cb$_0(a());\n	break;\n  case 'b':\n	b(function(_$$_1) {\n	  _$cb$_0(_$$_1);\n	});\n	break;\n  default:\n	c(function(_$$_2) {\n	  _$cb$_0(_$$_2);\n	});\n}\nfunction _$cb$_0() {\n  return null;\n};\n");
   });
+  it('sync otherwise', function() {
+    return code_eq("switch a\n	when b\n		b!\n	when c\n		a!\n	else\n		d\nnull", "var _this = this;\n\nswitch (a) {\n  case b:\n	b(function(_$$_2) {\n	  _$cb$_0(_$$_2);\n	});\n	break;\n  case c:\n	a(function(_$$_3) {\n	  _$cb$_0(_$$_3);\n	});\n	break;\n  default:\n	_$cb$_0(d);\n}\nfunction _$cb$_0(_$$_1) {\n  return null;\n};");
+  });
   return it('ends with if', function() {
     return code_eq("(autocb) ->\n	if a\n		x!\n		if e\n			return a", "(function(autocb) {\n	var _this = this;\n	if (a) {\n		x(function() {\n			if (e) {\n				return autocb(a);\n			} else {\n				autocb();\n			}\n		});\n	} else {\n		autocb();\n	}\n});");
   });

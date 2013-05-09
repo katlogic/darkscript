@@ -424,3 +424,56 @@ describe 'while', ->
 			  return null;
 			};
 		"""
+	it '_break', ->
+		code_eq  """
+			while true
+				a!
+				->
+					b _break
+			null
+		""", """
+			var _this = this;
+
+			function _body() {
+			  if (true) {
+				a(function() {
+				  _body(function() {
+					return b(_$cb$_0);
+				  });
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
+		"""
+
+	it '_continue', ->
+		code_eq  """
+			while true
+				a!
+				->
+					b _continue
+			null
+		""", """
+			var _this = this;
+
+			function _body() {
+			  if (true) {
+				a(function() {
+				  _body(function() {
+					return b(_body);
+				  });
+				});
+			  } else {
+				_$cb$_0();
+			  }
+			};
+			_body();
+			function _$cb$_0() {
+			  return null;
+			};
+		"""

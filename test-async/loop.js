@@ -40,7 +40,13 @@ describe('while', function() {
   it('for own of', function() {
     return code_eq("for own k, v of vs\n	x!\nnull", "var k, v, _$$_0, _$$_1, _i, _len,\n  __hasProp = {}.hasOwnProperty,\n  _this = this;\n\n_$$_1 = (function() {\n  var _results;\n  _results = [];\n  for (_$$_0 in vs) {\n	if (!__hasProp.call(vs, _$$_0)) continue;\n	_results.push(_$$_0);\n  }\n  return _results;\n})();\n\n_i = 0, _len = _$$_1.length;\nfunction _step() {\n  _i++;\n  _body();\n};\nfunction _body() {\n  if (_i < _len) {\n	k = _$$_1[_i];\n	v = vs[k];\n	x(function(_$$_3) {\n	  _step(_$$_3);\n	});\n  } else {\n	_$cb$_2();\n  }\n};\n_body();\nfunction _$cb$_2() {\n  return null;\n};");
   });
-  return it('nested for with break', function() {
+  it('nested for with break', function() {
     return code_eq("while true\n	a!\n	for i in a\n		if i < 10\n			continue\n		else\n			break\n	b!\nnull", "var i,\n  _this = this;\n\nfunction _body() {\n  if (true) {\n	a(function() {\n	  var _i, _len;\n	  for (_i = 0, _len = a.length; _i < _len; _i++) {\n		i = a[_i];\n		if (i < 10) {\n		  continue;\n		} else {\n		  break;\n		}\n	  }\n	  b(function(_$$_1) {\n		_body(_$$_1);\n	  });\n	});\n  } else {\n	_$cb$_0();\n  }\n};\n_body();\nfunction _$cb$_0() {\n  return null;\n};");
+  });
+  it('_break', function() {
+    return code_eq("while true\n	a!\n	->\n		b _break\nnull", "var _this = this;\n\nfunction _body() {\n  if (true) {\n	a(function() {\n	  _body(function() {\n		return b(_$cb$_0);\n	  });\n	});\n  } else {\n	_$cb$_0();\n  }\n};\n_body();\nfunction _$cb$_0() {\n  return null;\n};");
+  });
+  return it('_continue', function() {
+    return code_eq("while true\n	a!\n	->\n		b _continue\nnull", "var _this = this;\n\nfunction _body() {\n  if (true) {\n	a(function() {\n	  _body(function() {\n		return b(_body);\n	  });\n	});\n  } else {\n	_$cb$_0();\n  }\n};\n_body();\nfunction _$cb$_0() {\n  return null;\n};");
   });
 });
