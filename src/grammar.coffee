@@ -125,6 +125,7 @@ grammar =
     o 'Switch'
     o 'Class'
     o 'Throw'
+    o 'Autocb'
   ]
 
   # An indented block of expressions. Note that the [Rewriter](rewriter.html)
@@ -138,6 +139,10 @@ grammar =
   # A literal identifier, a variable name or property.
   Identifier: [
     o 'IDENTIFIER',                             -> new Literal $1
+  ]
+
+  Autocb: [
+    o 'AUTOCB',                                 -> new Literal 'autocb'
   ]
 
   # Alphanumerics are separated from the other **Literal** matchers because
@@ -229,6 +234,8 @@ grammar =
     o 'ParamVar',                               -> new Param $1
     o 'ParamVar ...',                           -> new Param $1, null, on
     o 'ParamVar = Expression',                  -> new Param $1, $3
+    o 'Autocb',                                 -> new AutocbParam []
+    o 'Autocb Arguments',                       -> new AutocbParam $2
   ]
 
  # Function Parameters
@@ -581,7 +588,6 @@ grammar =
        Expression',                             -> new Assign $1, $4, $2
     o 'SimpleAssignable EXTENDS Expression',    -> new Extends $1, $3
   ]
-
 
 # Precedence
 # ----------

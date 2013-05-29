@@ -663,6 +663,11 @@ exports.Return = class Return extends Base
     answer = []
     flow = $flows.last()
 
+    if (@generated || @expression.length == 0) && flow.args?.length
+      answer = answer.concat new Block(@expression).compileToFragments(o, LEVEL_TOP)
+      answer.push @makeCode "\n"
+      @expression = flow.args
+
     if @generated && flow.next
       expr = new Call new Literal(flow.next), @expression
       expr.omit_return = true
@@ -1653,23 +1658,17 @@ exports.Code = class Code extends Base
   constructor: (params, body, tag, @flow) ->
     @params  = params or []
     @body    = body or new Block
-    if m = tag?.match(/autocb(\w+)/)
-      @autocb = true
-      tag = m[1]
-      cb = uid('cb')
-      params.push(new Param new Literal cb)
-      @flow = {next: cb, return: cb}
-
     @bound   = tag is 'boundfunc'
     @context = '_this' if @bound
     @body.isCodeBlock = true
 
-    if !@autocb
-      @autocb = false
-      for param in @params when param.name?.value == 'autocb'
-        @autocb = true
-        @flow = {next: 'autocb', return: 'autocb'}
-        break
+    @autocb = false
+    @autocbArgs = []
+    for param in @params when param.name?.value == 'autocb'
+      @autocb = true
+      @autocbArgs = param.args
+      @flow = {next: 'autocb', return: 'autocb', args: param.args}
+      break
     @
 
   children: ['params', 'body']
@@ -1718,6 +1717,10 @@ exports.Code = class Code extends Base
           val = new Assign new Value(param.name), param.value, '='
           exprs.push new If lit, val
       params.push ref unless splats
+    for arg in @autocbArgs
+      if arg.isIdentifier?()
+        o.scope.find(arg.base.value)
+
     wasEmpty = @body.isEmpty()
     exprs.unshift splats if splats
     @body.expressions.unshift exprs... if exprs.length
@@ -1829,6 +1832,12 @@ exports.Param = class Param extends Base
       else
         obj.error "illegal parameter #{obj.compile()}"
     return
+
+exports.AutocbParam = class AutocbParam extends Param
+  constructor: (@args) ->
+    super(new Literal 'autocb')
+
+  children: ['name', 'args']
 
 #### Splat
 
