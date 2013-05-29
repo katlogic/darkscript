@@ -296,6 +296,33 @@ Return Multiple Values
 </tr>
 </table>
 
+Autocb with default args
+
+<table width=100%>
+<tr>
+	<td width=50% valign=top><pre>a = (paramA, autocb(e, data)) -&gt;
+  e = foo!
+  if something
+    data = 1
+  else
+    data = 2</pre></td>
+	<td width=50% valign=top><pre>function a(paramA, autocb) {
+  var data, e,
+    _this = this;
+  foo(function() {
+    e = arguments[0];
+    if (something) {
+      data = 1;
+      autocb(e, data);
+    } else {
+      data = 2;
+      autocb(e, data);
+    }
+  });
+};</pre></td>
+</tr>
+</table>
+
 ### Regexp
 
 <table width=100%>
