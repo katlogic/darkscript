@@ -1552,7 +1552,7 @@ exports.Assign = class Assign extends Base
         else
           acc = isObject and IDENTIFIER.test idx.unwrap().value or 0
         val = new Value new Literal(vvarText), [new (if acc then Access else Index) idx]
-      if name? and name in RESERVED
+      if name? and name != 'autocb' and name in RESERVED
         obj.error "assignment to a reserved word: #{obj.compile o}"
       first_obj ?= obj
       assigns.push new Assign(obj, val, null, param: @param, subpattern: yes).compileToFragments o, LEVEL_LIST
