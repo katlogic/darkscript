@@ -2709,6 +2709,8 @@ exports.Switch = class Switch extends Base
     fragments
 
   move: (dest) ->
+    return @ if @moved
+    @moved = true
     @subject = @subject.move(dest)
     for [conditions, block], i in @cases
       @error('condition cannot be async') if conditions.async
@@ -2720,8 +2722,7 @@ exports.Switch = class Switch extends Base
     if @otherwise && !@otherwise.async
       @otherwise.makeReturn()
     @otherwise?.move()
-    @async = false
-    @wrapped = true # used for break checking
+    @wrapped = true
     AsyncCall.wrap(@)
 
 #### If
@@ -2886,7 +2887,13 @@ exports.AsyncCall = class AsyncCall extends Call
       next_body.unshift(id)
     cb_code = new Code(params, next_body, 'boundfunc')
     cb_code.cross = true
+    async = false
     if @variable.base instanceof Code
+      for node in @variable.base.body.expressions
+        if node.async || node instanceof AsyncCall
+          async = true
+          break
+    if async && @variable.base instanceof Code
       body = new FlowBlock(@variable.base.body, @variable.base.flow)
       next_name = body.flow.next
       named_func = new Assign(new Value(new Literal(next_name)), cb_code)

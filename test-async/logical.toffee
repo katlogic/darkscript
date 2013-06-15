@@ -5,100 +5,103 @@ describe 'logical', ->
 		code_eq """
 			a! || b!
 		""", """
-			var _this = this;
+			  var _this = this;
 
-			a(function(_$$_0) {
-			  if (_$$_0) {
-				_$cb$_2(_$$_0);
-			  } else {
-				b(function(_$$_1) {
-				  _$cb$_2(_$$_1);
+			  (function(_$cb$_2) {
+				a(function(_$$_0) {
+				  if (_$$_0) {
+					_$cb$_2(_$$_0);
+				  } else {
+					b(function(_$$_1) {
+					  _$cb$_2(_$$_1);
+					});
+				  }
 				});
-			  }
-			});
-			function _$cb$_2(_$$_3) {
-			  return _$$_3;
-			};
+			  })(function(_$$_3) {
+				return _$$_3;
+			  });
 		"""
 
 	it '&&', ->
 		code_eq """
 			a! && b!
 		""", """
-			var _this = this;
+			  var _this = this;
 
-			a(function(_$$_0) {
-			  if (!_$$_0) {
-				_$cb$_2(_$$_0);
-			  } else {
-				b(function(_$$_1) {
-				  _$cb$_2(_$$_1);
+			  (function(_$cb$_2) {
+				a(function(_$$_0) {
+				  if (!_$$_0) {
+					_$cb$_2(_$$_0);
+				  } else {
+					b(function(_$$_1) {
+					  _$cb$_2(_$$_1);
+					});
+				  }
 				});
-			  }
-			});
-			function _$cb$_2(_$$_3) {
-			  return _$$_3;
-			};
-
+			  })(function(_$$_3) {
+				return _$$_3;
+			  });
 		"""
 
 	it '?', ->
 		code_eq """
 			a! ? b!
 		""", """
-			var _this = this;
+			  var _this = this;
 
-			a(function(_$$_0) {
-			  if (_$$_0 != null) {
-				_$cb$_2(_$$_0);
-			  } else {
-				b(function(_$$_1) {
-				  _$cb$_2(_$$_1);
+			  (function(_$cb$_2) {
+				a(function(_$$_0) {
+				  if (_$$_0 != null) {
+					_$cb$_2(_$$_0);
+				  } else {
+					b(function(_$$_1) {
+					  _$cb$_2(_$$_1);
+					});
+				  }
 				});
-			  }
-			});
-			function _$cb$_2(_$$_3) {
-			  return _$$_3;
-			};
+			  })(function(_$$_3) {
+				return _$$_3;
+			  });
 		"""
 
 	it '&&=', ->
 		code_eq """
 			a &&= b!
 		""", """
-			var a,
-			  _this = this;
+			  var a,
+				_this = this;
 
-			if (!a) {
-			  a;
-			} else {
-			  b(function() {
-				_$cb$_0(a = arguments[0]);
+			  (function(_$cb$_0) {
+				if (!a) {
+				  _$cb$_0(a);
+				} else {
+				  b(function() {
+					_$cb$_0(a = arguments[0]);
+				  });
+				}
+			  })(function(_$$_1) {
+				return _$$_1;
 			  });
-			}
-			function _$cb$_0(_$$_1) {
-			  return _$$_1;
-			};
 		"""
 
 	it '||=', ->
 		code_eq """
 			a ||= b!
 		""", """
-			var a,
-			  _this = this;
+			  var a,
+				_this = this;
 
-			if (a) {
-			  a;
-			} else {
-			  b(function() {
-				_$cb$_0(a = arguments[0]);
+			  (function(_$cb$_0) {
+				if (a) {
+				  _$cb$_0(a);
+				} else {
+				  b(function() {
+					_$cb$_0(a = arguments[0]);
+				  });
+				}
+			  })(function(_$$_1) {
+				return _$$_1;
 			  });
-			}
-			function _$cb$_0(_$$_1) {
-			  return _$$_1;
-			};
-
 		"""
 
 	it '?=', ->
@@ -106,58 +109,60 @@ describe 'logical', ->
 		code_eq """
 			a ?= b!
 		""", """
-			var a,
-			  _this = this;
+			  var a,
+				_this = this;
 
-			if (typeof a !== "undefined" && a !== null) {
-			  a;
-			} else {
-			  b(function() {
-				_$cb$_0(a = arguments[0]);
+			  (function(_$cb$_0) {
+				if (typeof a !== "undefined" && a !== null) {
+				  _$cb$_0(a);
+				} else {
+				  b(function() {
+					_$cb$_0(a = arguments[0]);
+				  });
+				}
+			  })(function(_$$_1) {
+				return _$$_1;
 			  });
-			}
-			function _$cb$_0(_$$_1) {
-			  return _$$_1;
-			};
 		"""
 
 	it 'complex', ->
 		code_eq """
-			x = a! && b! || c! && d!
+			x = a && b! || c! && d!
 		""", """
 			var x,
 			  _this = this;
 
-			a(function(_$$_1) {
-			  if (!_$$_1) {
-				_$cb$_3(_$$_1);
-			  } else {
-				b(function(_$$_2) {
-				  _$cb$_3(_$$_2);
+			(function(_$cb$_8) {
+			  (function(_$cb$_5) {
+				(function(_$cb$_2) {
+				  if (!a) {
+					_$cb$_2(a);
+				  } else {
+					b(function(_$$_1) {
+					  _$cb$_2(_$$_1);
+					});
+				  }
+				})(function(_$$_3) {
+				  if (_$$_3) {
+					_$cb$_5(_$$_3);
+				  } else {
+					c(function(_$$_4) {
+					  _$cb$_5(_$$_4);
+					});
+				  }
 				});
-			  }
+			  })(function(_$$_6) {
+				if (!_$$_6) {
+				  _$cb$_8(_$$_6);
+				} else {
+				  d(function(_$$_7) {
+					_$cb$_8(_$$_7);
+				  });
+				}
+			  });
+			})(function(_$$_9) {
+			  _$cb$_0(_$$_9);
 			});
-			function _$cb$_3(_$$_4) {
-			  if (_$$_4) {
-				_$cb$_6(_$$_4);
-			  } else {
-				c(function(_$$_5) {
-				  _$cb$_6(_$$_5);
-				});
-			  }
-			};
-			function _$cb$_6(_$$_7) {
-			  if (!_$$_7) {
-				_$cb$_9(_$$_7);
-			  } else {
-				d(function(_$$_8) {
-				  _$cb$_9(_$$_8);
-				});
-			  }
-			};
-			function _$cb$_9(_$$_10) {
-			  _$cb$_0(_$$_10);
-			};
 			function _$cb$_0() {
 			  return x = arguments[0];
 			};
