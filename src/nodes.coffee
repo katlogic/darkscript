@@ -1990,9 +1990,11 @@ exports.While = class While extends Base
       else
         done_body = []
       done = names.done = o.scope.freeVariable('done', false)
+      done_flow = $flows.clone(flow)
+      done_flow.args = null
       done_fn = new Assign(
         new Value(new Literal(names.done)),
-        new Code([], new Block(done_body), 'boundfunc', flow)
+        new Code([], new Block(done_body), 'boundfunc', done_flow)
       )
       done_fn.moved = true
 
@@ -2027,6 +2029,7 @@ exports.While = class While extends Base
     if info.varPart
       info.body.unshift(info.varPart)
 
+    # TODO - remove arguments of step calling in autocb code block.
     body_fn = new Assign(
       new Value(new Literal(names.body)),
       code = new Code([], new Block([
