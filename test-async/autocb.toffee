@@ -39,3 +39,46 @@ describe 'autocb', ->
 			  return autocb();
 			};
 		"""
+
+	it 'autocb with args and condition', ->
+		code_eq """
+			(autocb(a)) ->
+				if d! + e!
+					f!
+				d = a! + b!
+				c!
+		""", """
+			(function(autocb) {
+			  var a, d,
+				_this = this;
+			  d(function(_$$_7) {
+				e(function(_$$_8) {
+				  _$cb$_6(_$$_7 + _$$_8);
+				});
+			  });
+			  function _$cb$_6(_$$_0) {
+				if (_$$_0) {
+				  f(function() {
+					_$$_5();
+				  });
+				} else {
+				  _$$_5();
+				}
+				function _$$_5() {
+				  a(function(_$$_2) {
+					b(function(_$$_3) {
+					  _$cb$_1(_$$_2 + _$$_3);
+					});
+				  });
+				  function _$cb$_1() {
+					d = arguments[0];
+					c(function(_$$_10) {
+					  _$$_10;
+					  autocb(a);
+					});
+				  };
+				};
+			  };
+			});
+
+		"""

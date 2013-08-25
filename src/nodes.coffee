@@ -2936,7 +2936,7 @@ exports.AsyncCall = class AsyncCall extends Call
     next = uid('cb')
     code = new Code([new Param new Literal next], code_body, 'boundfunc')
     code.autocb = true
-    code.flow = {next: next}
+    code.flow = {next: next, args: null}
     code_body.move()
     code.cross = cross
 
