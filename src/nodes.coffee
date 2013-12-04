@@ -1923,6 +1923,7 @@ exports.While = class While extends Base
   # return an array containing the computed result of each iteration.
   compileNode: (o) ->
     $flows.push $flows.clone({continue:null,break:null}) unless @async
+    flow = $flows.last()
     info = {}
     if @results_id?
       @returns = false
@@ -1936,7 +1937,11 @@ exports.While = class While extends Base
     else
       if @returns
         body.makeReturn rvar = o.scope.freeVariable 'results'
-        set  = "#{@tab}#{rvar} = [];\n"
+        resultPart   = "#{@tab}#{rvar} = [];\n"
+        if next = flow.next
+          returnResult = "\n#{@tab}return #{next}(#{rvar});"
+        else
+          returnResult = "\n#{@tab}return #{rvar};"
       if @guard
         if body.expressions.length > 1
           body.expressions.unshift ifPart = new If (new Parens @guard).invert(), new Literal "continue"
@@ -1951,10 +1956,9 @@ exports.While = class While extends Base
     info.results = rvar
     info.condPart = @condition
     return @asyncCompileNode(o, info) if @async
-    answer = [].concat @makeCode(set + @tab + "while ("), @condition.compileToFragments(o, LEVEL_PAREN),
-      @makeCode(") {"), body, @makeCode("}")
-    if @returns
-      answer.push @makeCode "\n#{@tab}return #{rvar};"
+    answer = [].concat @makeCode((resultPart or '') + @tab + "while ("), @condition.compileToFragments(o, LEVEL_PAREN),
+      @makeCode(") {"), body,
+      @makeCode("}#{returnResult or ''}")
     $flows.pop() unless @async
     answer
 
