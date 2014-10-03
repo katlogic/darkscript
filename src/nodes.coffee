@@ -603,7 +603,7 @@ exports.Literal = class Literal extends Base
       ).compileToFragments(o, LEVEL_TOP)
       $flows.pop()
       return answer
-    if @value in ['_break', '_continue']
+    if !@asKey && @value in ['_break', '_continue']
       unless flow[@value]
         @error("unexpected #{@value}")
       answer = [@makeCode flow[@value]]
@@ -2940,7 +2940,8 @@ exports.AsyncCall = class AsyncCall extends Call
     next = uid('cb')
     code = new Code([new Param new Literal next], code_body, 'boundfunc')
     code.autocb = true
-    code.flow = {next: next, args: null}
+    # fixes autocb in for loop
+    code.flow = {next: next}
     code_body.move()
     code.cross = cross
 
