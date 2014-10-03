@@ -13,7 +13,7 @@ helpers       = require './helpers'
 SourceMap     = require './sourcemap'
 
 # The current CoffeeScript version number.
-exports.VERSION = '1.6.3-3'
+exports.VERSION = '1.6.3-4'
 
 extensions = ['.coffee', '.litcoffee', '.coffee.md', '.toffee']
 
