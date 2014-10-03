@@ -673,6 +673,9 @@ exports.Return = class Return extends Base
       expr = new Call new Literal(flow.next), @expression
       expr.omit_return = true
     else if flow.return
+      if @expression.length == 0 && flow.autocbargs?.length
+        @expression = flow.autocbargs
+        
       expr = new Call new Literal(flow.return), @expression
     else if @expression.length > 1
       @error "failed to return multiple value"
@@ -1668,7 +1671,9 @@ exports.Code = class Code extends Base
     for param in @params when param.name?.value == 'autocb'
       @autocb = true
       @autocbArgs = param.args
-      @flow = {next: 'autocb', return: 'autocb', args: param.args}
+      # args is used for next
+      # autocbargs is used for autocb
+      @flow = {next: 'autocb', return: 'autocb', args: param.args, autocbargs: param.args}
       break
     @
 
@@ -2726,6 +2731,7 @@ exports.Switch = class Switch extends Base
         # use return instead of break  if it isn't async
         block.makeReturn()
       else
+        @otherwise or= new Block [new Literal 'void 0']
         block.move()
     if @otherwise && !@otherwise.async
       @otherwise.makeReturn()
@@ -2940,8 +2946,7 @@ exports.AsyncCall = class AsyncCall extends Call
     next = uid('cb')
     code = new Code([new Param new Literal next], code_body, 'boundfunc')
     code.autocb = true
-    # fixes autocb in for loop
-    code.flow = {next: next}
+    code.flow = {next: next, args: null}
     code_body.move()
     code.cross = cross
 

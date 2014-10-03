@@ -116,3 +116,38 @@ describe 'autocb', ->
 			  };
 			});
 		"""
+	it 'autocb in switch', ->
+		code_eq """
+			(autocb(e)) ->
+				switch a
+					when 'a'
+						d= b!(4).d
+						return
+				f
+		""", """
+			(function(autocb) {
+			  var d, e,
+				_this = this;
+			  switch (a) {
+				case 'a':
+				  b(4, function(_$$_5) {
+					_$cb$_1(_$$_5);
+				  });
+				  function _$cb$_1(_$$_2) {
+					_$cb$_0(_$$_2.d);
+				  };
+				  function _$cb$_0() {
+					d = arguments[0];
+					return autocb(e);
+				  };
+				  break;
+				default:
+				  _$cb$_4(void 0);
+			  }
+			  function _$cb$_4() {
+				f;
+				autocb(e);
+			  };
+			});
+		"""
+
