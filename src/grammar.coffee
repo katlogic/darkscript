@@ -205,11 +205,14 @@ grammar =
     o 'FuncGlyph Block',                        -> new Code [], $2, $1
   ]
 
-  # CoffeeScript has two different symbols for functions. `->` is for ordinary
+  # CoffeeScript has four different symbols for functions. `->` is for ordinary
   # functions, and `=>` is for functions bound to the current value of *this*.
+  # The variations prefixed with '!' do not have an implicit return value.
   FuncGlyph: [
-    o '->',                                     -> 'func'
-    o '=>',                                     -> 'boundfunc'
+    o '->'
+    o '=>'
+    o '!->'
+    o '!=>'
   ]
 
   # An optional, trailing comma.
@@ -235,9 +238,10 @@ grammar =
     o 'ParamVar = Expression',                  -> new Param $1, $3
     o 'Autocb',                                 -> new AutocbParam []
     o 'Autocb Arguments',                       -> new AutocbParam $2
+    o '...',                                    -> new Expansion
   ]
 
- # Function Parameters
+  # Function Parameters
   ParamVar: [
     o 'Identifier'
     o 'ThisProperty'
@@ -401,6 +405,7 @@ grammar =
   Arg: [
     o 'Expression'
     o 'Splat'
+    o '...',                                     -> new Expansion
   ]
 
   # Just simple, comma-separated, required arguments (no fancy syntax). We need
@@ -555,8 +560,9 @@ grammar =
   # rules are necessary.
   Operation: [
     o 'UNARY Expression',                       -> new Op $1 , $2
-    o '-     Expression',                      (-> new Op '-', $2), prec: 'UNARY'
-    o '+     Expression',                      (-> new Op '+', $2), prec: 'UNARY'
+    o 'UNARY_MATH Expression',                  -> new Op $1 , $2
+    o '-     Expression',                      (-> new Op '-', $2), prec: 'UNARY_MATH'
+    o '+     Expression',                      (-> new Op '+', $2), prec: 'UNARY_MATH'
 
     o '-- SimpleAssignable',                    -> new Op '--', $2
     o '++ SimpleAssignable',                    -> new Op '++', $2
@@ -570,6 +576,7 @@ grammar =
     o 'Expression -  Expression',               -> new Op '-' , $1, $3
 
     o 'Expression MATH     Expression',         -> new Op $2, $1, $3
+    o 'Expression **       Expression',         -> new Op $2, $1, $3
     o 'Expression SHIFT    Expression',         -> new Op $2, $1, $3
     o 'Expression COMPARE  Expression',         -> new Op $2, $1, $3
     o 'Expression LOGIC    Expression',         -> new Op $2, $1, $3
@@ -605,6 +612,8 @@ operators = [
   ['nonassoc',  '++', '--']
   ['left',      '?']
   ['right',     'UNARY']
+  ['right',     '**']
+  ['right',     'UNARY_MATH']
   ['left',      'MATH']
   ['left',      '+', '-']
   ['left',      'SHIFT']
@@ -615,7 +624,7 @@ operators = [
   ['right',     '=', ':', 'COMPOUND_ASSIGN', 'RETURN', 'THROW', 'EXTENDS']
   ['right',     'FORIN', 'FOROF', 'BY', 'WHEN']
   ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'ASYNC']
-  ['right',     'POST_IF']
+  ['right',     'POST_IF'] # MERGE: 'left'
 ]
 
 # Wrapping Up
@@ -637,8 +646,11 @@ for name, alternatives of grammar
 # rules, and the name of the root. Reverse the operators because Jison orders
 # precedence from low to high, and we have it high to low
 # (as in [Yacc](http://dinosaur.compilertools.net/yacc/index.html)).
-exports.parser = new Parser
+#console.error('gram')
+#console.error('x'+tokens)
+exports.parser = new Parser({
   tokens      : tokens.join ' '
   bnf         : grammar
   operators   : operators.reverse()
-  startSymbol : 'Root'
+  startSymbol : 'Root'})
+

@@ -4,7 +4,6 @@ vm = require 'vm'
 nodeREPL = require 'repl'
 CoffeeScript = require './coffee-script'
 {merge, prettyErrorMessage} = require './helpers'
-# Require AST nodes to do some AST manipulation.
 {Block, Assign, Value, Literal} = require './nodes'
 
 replDefaults =
@@ -26,9 +25,13 @@ replDefaults =
         new Assign (new Value new Literal '_'), ast, '='
       ]
       js = ast.compile bare: yes, locals: Object.keys(context)
-      cb null, vm.runInContext(js, context, filename)
+      result = if context is global
+        vm.runInThisContext js, filename 
+      else
+        vm.runInContext js, context, filename
+      cb null, result
     catch err
-      cb prettyErrorMessage(err, filename, input, yes)
+      cb err
 
 addMultilineHandler = (repl) ->
   {rli, inputStream, outputStream} = repl
@@ -124,6 +127,8 @@ module.exports =
       console.warn "Node 0.8.0+ required for CoffeeScript REPL"
       process.exit 1
 
+    CoffeeScript.register()
+    process.argv = ['coffee'].concat process.argv[2..]
     opts = merge replDefaults, opts
     repl = nodeREPL.start opts
     repl.on 'exit', -> repl.outputStream.write '\n'

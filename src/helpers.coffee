@@ -25,13 +25,6 @@ exports.repeat = repeat = (str, n) ->
 exports.compact = (array) ->
   item for item in array when item
 
-# Count the number of occurrences of a string in a string.
-exports.count = (string, substr) ->
-  num = pos = 0
-  return 1/0 unless substr.length
-  num++ while pos = 1 + string.indexOf substr, pos
-  num
-
 # Merge objects, returning a fresh copy with attributes from both sides.
 # Used every time `Base#compile` is called, to allow properties in the
 # options hash to propagate down the tree without polluting other branches.
@@ -94,35 +87,33 @@ buildLocationData = (first, last) ->
     first_column: first.first_column
     last_line: last.last_line
     last_column: last.last_column
+    file_num: last.file_num
 
 # This returns a function which takes an object as a parameter, and if that
 # object is an AST node, updates that object's locationData.
 # The object is returned either way.
 exports.addLocationDataFn = (first, last) ->
-    (obj) ->
-      if ((typeof obj) is 'object') and (!!obj['updateLocationDataIfMissing'])
-        obj.updateLocationDataIfMissing buildLocationData(first, last)
+  (obj) ->
+    if ((typeof obj) is 'object') and (!!obj['updateLocationDataIfMissing'])
+      obj.updateLocationDataIfMissing buildLocationData(first, last)
 
-      return obj
+    return obj
 
 # Convert jison location data to a string.
 # `obj` can be a token, or a locationData.
-exports.locationDataToString = (obj) ->
-    if ("2" of obj) and ("first_line" of obj[2]) then locationData = obj[2]
-    else if "first_line" of obj then locationData = obj
-
-    if locationData
-      "#{locationData.first_line + 1}:#{locationData.first_column + 1}-" +
-      "#{locationData.last_line + 1}:#{locationData.last_column + 1}"
-    else
-      "No location data"
+exports.locationDataToString = (ld) ->
+  return '<unknown location>' if not ld
+  loc = ''
+  if filename = filenames[ld.file_num ? filenames.length-1]
+    loc += filename+':'
+  loc += (ld.first_line + 1) + ':' + (ld.first_column + 1)
 
 # A `.coffee.md` compatible version of `basename`, that returns the file sans-extension.
 exports.baseFileName = (file, stripExt = no, useWinPathSep = no) ->
   pathSep = if useWinPathSep then /\\|\// else /\//
   parts = file.split(pathSep)
   file = parts[parts.length - 1]
-  return file unless stripExt
+  return file unless stripExt and file.indexOf('.') >= 0
   parts = file.split('.')
   parts.pop()
   parts.pop() if parts[parts.length - 1] is 'coffee' and parts.length > 1
@@ -134,44 +125,68 @@ exports.isCoffee = (file) -> /\.((lit)?coffee|coffee\.md)$/.test file
 # Determine if a filename represents a Literate CoffeeScript file.
 exports.isLiterate = (file) -> /\.(litcoffee|coffee\.md)$/.test file
 
-# Throws a SyntaxError with a source file location data attached to it in a
-# property called `location`.
+# Throws a SyntaxError from a given location.
+# The error's `toString` will return an error message following the "standard"
+# format <filename>:<line>:<col>: <message> plus the line with the error and a
+# marker showing where the error is.
 exports.throwSyntaxError = (message, location) ->
-  location.last_line ?= location.first_line
-  location.last_column ?= location.first_column
-  error = new SyntaxError message
-  error.location = location
-  throw error
+  err = new SyntaxError message
+  err.location = location
+  # Instead of showing the compiler's stacktrace, show our custom error message
+  # (this is useful when the error bubbles up in Node.js applications that
+  # compile CoffeeScript for example).
+  err.toString = syntaxErrorToString
+  err.stack = err.toString()
+  throw err
 
-# Creates a nice error message like, following the "standard" format
-# <filename>:<line>:<col>: <message> plus the line with the error and a marker
-# showing where the error is.
-exports.prettyErrorMessage = (error, filename, code, useColors) ->
-  return error.stack or "#{error}" unless error.location
 
-  # Prefer original source file information stored in the error if present.
-  filename = error.filename or filename
-  code     = error.code or code
+# Lists of coffeescript sources and filenames, for every bit of code that is
+# tokenized. It's indexed by `file_num`, which is set on each of the parser 
+# nodes and is passed to the lexer.
+exports.scripts = scripts = []
+exports.filenames = filenames = []
 
-  {first_line, first_column, last_line, last_column} = error.location
-  codeLine = code.split('\n')[first_line]
+exports.getFileNum = (source, filename) ->
+  fileNum = scripts.length
+  scripts[fileNum] = source
+  filenames[fileNum] = filename
+  fileNum
+
+
+syntaxErrorToString = ->
+  return Error::toString.call @ unless @location
+
+  {first_line, first_column, last_line, last_column, file_num} = @location
+  file_num ?= scripts.length-1 # we're parsing/lexing the most recent script
+  last_line ?= first_line
+  last_column ?= first_column
+
+  filename = filenames[file_num] or '[stdin]'
+  codeLine = scripts[file_num]?.split('\n')[first_line] || ''
   start    = first_column
   # Show only the first line on multi-line errors.
   end      = if first_line is last_line then last_column + 1 else codeLine.length
-  marker   = repeat(' ', start) + repeat('^', end - start)
+  marker   = codeLine.substr(0,start).replace(/[^\t]/g,' ') + (codeLine+" ").substring(start,end).replace(/[^\t]/g,'^')
 
-  if useColors
+  # Check to see if we're running on a color-enabled TTY.
+  if process?
+    colorsEnabled = process.stdout.isTTY and not process.env.NODE_DISABLE_COLORS
+
+  if @colorful ? colorsEnabled
     colorize = (str) -> "\x1B[1;31m#{str}\x1B[0m"
     codeLine = codeLine[...start] + colorize(codeLine[start...end]) + codeLine[end..]
     marker   = colorize marker
 
-  message = """
-    #{filename}:#{first_line + 1}:#{first_column + 1}: error: #{error.message}
+  """
+    #{filename}:#{first_line + 1}:#{first_column + 1}: error: #{@message}
     #{codeLine}
     #{marker}
   """
 
-  # Uncomment to add stacktrace.
-  #message += "\n#{error.stack}"
-
-  message
+exports.nameWhitespaceCharacter = (string) ->
+  switch string
+    when ' ' then 'space'
+    when '\n' then 'newline'
+    when '\r' then 'carriage return'
+    when '\t' then 'tab'
+    else string

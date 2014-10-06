@@ -3,7 +3,7 @@
   "description":  "CoffeeScript with asynchronous syntax and additional features",
   "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript", "asynchronous"],
   "author":       "Miao Jiang",
-  "version":      "1.6.3-4",
+  "version":      "1.7.1-0",
   "licenses":     [{
     "type":       "MIT",
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
@@ -11,25 +11,33 @@
   "engines":      {
     "node":       ">=0.8.0"
   },
-  "directories" : {
-    "lib" : "./lib/coffee-script"
+  "directories": {
+    "lib": "./lib/coffee-script"
   },
   "main" : "./lib/coffee-script/coffee-script",
   "bin":          {
     "toffee":     "./bin/coffee",
+    "blacktoffee":"./bin/blackcoffee",
     "tcons":      "./bin/cake"
   },
   "scripts": {
     "test": "node ./bin/cake test"
   },
-  "homepage":     "https://github.com/jiangmiao/toffee-script",
-  "bugs":         "https://github.com/jiangmiao/toffee-script/issues",
+  "homepage":     "https://github.com/katlogic/toffee-script",
+  "bugs":         "https://github.com/katlogic/toffee-script/issues",
   "repository":   {
     "type": "git",
-    "url": "git://github.com/jiangmiao/toffee-script.git"
+    "url": "git://github.com/katlogic/toffee-script.git"
   },
   "devDependencies": {
-    "uglify-js":  "~2.2",
-    "jison":      ">=0.2.0"
+    "uglify-js": "~2.2",
+    "jison": ">=0.2.0",
+    "highlight.js": "~8.0.0",
+    "underscore": "~1.5.2",
+    "docco": "0.6.x"
+  },
+  "dependencies": {
+    "mkdirp": "~0.3.5",
+    "docco": "~0.6.2"
   }
 }

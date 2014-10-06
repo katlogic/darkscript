@@ -51,8 +51,12 @@ ok del() is 5
 obj =
   bound: ->
     (=> this)()
+  bound2: ->
+    (!=> return this)()
   unbound: ->
     (-> this)()
+  unbound2: ->
+    (!-> return this)()
   nested: ->
     (=>
       (=>
@@ -60,7 +64,9 @@ obj =
       )()
     )()
 eq obj, obj.bound()
+eq obj, obj.bound2()
 ok obj isnt obj.unbound()
+ok obj isnt obj.unbound2()
 eq obj, obj.nested()
 
 
@@ -178,6 +184,21 @@ test "default values with splatted arguments", ->
   eq  1, withSplats(1,1,1)
   eq  2, withSplats(1,1,1,1)
 
+test "#156: parameter lists with expansion", ->
+  expandArguments = (first, ..., lastButOne, last) ->
+    eq 1, first
+    eq 4, lastButOne
+    last
+  eq 5, expandArguments 1, 2, 3, 4, 5
+
+  throws (-> CoffeeScript.compile "(..., a, b...) ->"), null, "prohibit expansion and a splat"
+  throws (-> CoffeeScript.compile "(...) ->"),          null, "prohibit lone expansion"
+
+test "#156: parameter lists with expansion in array destructuring", ->
+  expandArray = (..., [..., last]) ->
+    last
+  eq 3, expandArray 1, 2, 3, [1, 2, 3]
+
 test "default values with function calls", ->
   doesNotThrow -> CoffeeScript.compile "(x = f()) ->"
 
@@ -185,6 +206,20 @@ test "arguments vs parameters", ->
   doesNotThrow -> CoffeeScript.compile "f(x) ->"
   f = (g) -> g()
   eq 5, f (x) -> 5
+
+test "procedures", ->
+  func = (a) !->
+    return a if a
+    17
+  eq func(2), 2
+  eq func(), undefined
+
+test "bound procedures", ->
+  getFunc = -> !=>
+    return @val if @val
+    17
+  eq getFunc()(), undefined
+  eq getFunc.call(val: 3)(), 3
 
 test "#1844: bound functions in nested comprehensions causing empty var statements", ->
   a = ((=>) for a in [0] for b in [0])
