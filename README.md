@@ -1,447 +1,24 @@
-ToffeeScript
-============
+Darkscript
+==========
 
-ToffeeScript is a CoffeeScript dialect with Asynchronous Grammar
+Darkscript is a fork of ToffeeScript and BlackCoffee, both of which
+are CoffeeScript dialects. Darkscript attempts to follow bleeding
+edge CoffeeScript (1.7.x) and is currently in experimental shape.
 
-**Features**
+Overview of goals
+-----------------
 
-1. Asynchronous everywhere
-    * Condition: If, Switch
-    * Loop: For In, For Of, While with guard `when`
-    * Mathematics
-    * Logical Operation
-2. Auto Callback
-3. Regexp Operator `=~` and matches `\~`, `\&`, `\0`~`\9`
-4. High efficent code generated.
-5. Sourcemap Supported.
-    * Follow up to CoffeeScript 1.6.2 so far
-6. Safety named-function supported.
-	* Added in ToffeeScript 1.6.2-3
+Compiler-assisted coroutines ("asynchronous grammar") and hygienic macros.
+Additionally, small syntactic extensions are introduced:
 
-Installation
-------------
+* =~ operator (from ToffeeScript)
+* !-> and !=> functions mark no implicit return (from Coco)
 
-    npm install toffee-script
-
-Named Function
---------------
-ToffeeScript support named function which is different from CoffeeScript.
-if the function defined in the first level of code block and the function name haven't been used, then compile it as named function. see Code Examples section
-It won't have compatible issue with CoffeeScript except one case
-
-	# m never declared above, m must be local variable and assign to undefined
-	m()
-	m = ->
-	m
-
-in CoffeeScript will throw exception `undefined is not function`. Use m as constant undefined variable is rare case.
-
-in ToffeeScript function m is hoisted, and will run function m() as Javascript does.
-
-Code Examples
--------------
-Left: ToffeeScript
-
-Right: Generated JavaScript
-### Basic
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>x, y = a! b
-console.log x, y</pre></td>
-	<td width=50% valign=top><pre>var x, y,
-  _this = this;
-
-a(b, function() {
-  x = arguments[0], y = arguments[1];
-  return console.log(x, y);
-});</pre></td>
-</tr>
-</table>
-
-with powerful CoffeeScript assignment `[...]`
-
-<table width=100%>
-<tr><td width=100%><pre>[@x, y...] = a! b
-console.log @x, y</pre></td></tr>
-<tr><td width=100%><pre>var y,
-  _this = this,
-  __slice = [].slice;
-
-a(b, function() {
-  _this.x = arguments[0], y = 2 &lt;= arguments.length ? __slice.call(arguments, 1) : [];
-  return console.log(_this.x, y);
-});</pre></td></tr>
-</table>
-
-### Condition
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>if i
-  x = a!
-else
-  y = b!
-console.log x, y</pre></td>
-	<td width=50% valign=top><pre>var x, y,
-  _this = this;
-
-if (i) {
-  a(function() {
-    x = arguments[0];
-    _$$_0();
-  });
-} else {
-  b(function() {
-    y = arguments[0];
-    _$$_0();
-  });
-}
-
-function _$$_0() {
-  return console.log(x, y);
-};</pre></td>
-</tr>
-</table>
-
-Async in condition
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>if e = a!
-  return cb(e)
-foo()</pre></td>
-	<td width=50% valign=top><pre>var e,
-  _this = this;
-
-a(function() {
-  _$cb$_2(e = arguments[0]);
-});
-function _$cb$_2(_$$_0) {
-  if (_$$_0) {
-    return cb(e);
-  } else {
-    _$$_1();
-  }
-  function _$$_1() {
-    return foo();
-  };
-};</pre></td>
-</tr>
-</table>
-
-Async in condition with multi return
-
-Async call always return first argument
-
-<table width=100%>
-<tr><td width=100%><pre>if e, data = fs.readFile! 'foo'
-  return cb(e)
-console.log data</pre></td></tr>
-<tr><td width=100%><pre>var data, e,
-  _this = this;
-
-fs.readFile('foo', function() {
-  _$cb$_2((e = arguments[0], data = arguments[1], e));
-});
-function _$cb$_2(_$$_0) {
-  if (_$$_0) {
-    return cb(e);
-  } else {
-    _$$_1();
-  }
-  function _$$_1() {
-    return console.log(data);
-  };
-};</pre></td></tr>
-</table>
-
-### Loop
-Support For In, For Of, While with guard `when`
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>xs = for i in [1..3] when i &gt; 2
-  a!
-  # return arguments[0] in default</pre></td>
-	<td width=50% valign=top><pre>var i, xs, _$res$_1, _i,
-  _this = this;
-
-_$res$_1 = [];
-i = _i = 1;
-function _step() {
-  i = ++_i;
-  _body();
-};
-function _body() {
-  if (_i &lt;= 3) {
-    if (i &gt; 2) {
-      a(function(_$$_2) {
-        _step(_$res$_1.push(_$$_2));
-      });
-    } else {
-      _step();
-    }
-  } else {
-    _done();
-  }
-};
-function _done() {
-  _$cb$_0(_$res$_1);
-};
-_body();
-function _$cb$_0() {
-  return xs = arguments[0];
-};</pre></td>
-</tr>
-</table>
-
-### Mathematics
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>x = a! + b! * c!</pre></td>
-	<td width=50% valign=top><pre>var x,
-  _this = this;
-
-a(function(_$$_1) {
-  b(function(_$$_3) {
-    c(function(_$$_4) {
-      _$cb$_2(_$$_3 * _$$_4);
-    });
-  });
-  function _$cb$_2(_$$_5) {
-    _$cb$_0(_$$_1 + _$$_5);
-  };
-});
-function _$cb$_0() {
-  return x = arguments[0];
-};</pre></td>
-</tr>
-</table>
-
-### Object
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>A =
-  a: a
-  b: b!
-  c: c</pre></td>
-	<td width=50% valign=top><pre>var A, _$$_1,
-  _this = this;
-
-_$$_1 = a;
-b(function(_$$_2) {
-  _$cb$_0({
-    a: _$$_1,
-    b: _$$_2,
-    c: c
-  });
-});
-function _$cb$_0() {
-  return A = arguments[0];
-};</pre></td>
-</tr>
-</table>
-
-### Logical
-Support `||`, `&&`, `?`, `&&=`, `||=`, `?=`
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>x = a! || b!
-console.log x</pre></td>
-	<td width=50% valign=top><pre>var x,
-  _this = this;
-
-a(function(_$$_1) {
-  if (_$$_1) {
-    _$cb$_3(_$$_1);
-  } else {
-    b(function(_$$_2) {
-      _$cb$_3(_$$_2);
-    });
-  }
-});
-function _$cb$_3(_$$_4) {
-  _$cb$_0(_$$_4);
-};
-function _$cb$_0() {
-  x = arguments[0];
-  return console.log(x);
-};</pre></td>
-</tr>
-</table>
-
-### Auto Callback
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>a = (autocb) -&gt; return 3</pre></td>
-	<td width=50% valign=top><pre>function a(autocb) {
-  return autocb(3);
-};</pre></td>
-</tr>
-</table>
-
-Return Multiple Values
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>a = (autocb) -&gt; return null, 3</pre></td>
-	<td width=50% valign=top><pre>function a(autocb) {
-  return autocb(null, 3);
-};</pre></td>
-</tr>
-</table>
-
-Autocb with default args
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>a = (paramA, autocb(e, data)) -&gt;
-  e = foo!
-  if something
-    data = 1
-  else
-    data = 2</pre></td>
-	<td width=50% valign=top><pre>function a(paramA, autocb) {
-  var data, e,
-    _this = this;
-  foo(function() {
-    e = arguments[0];
-    if (something) {
-      data = 1;
-      autocb(e, data);
-    } else {
-      data = 2;
-      autocb(e, data);
-    }
-  });
-};</pre></td>
-</tr>
-</table>
-
-### Regexp
-
-<table width=100%>
-<tr><td width=100%><pre>if a =~ b || b =~ c
-  \~
-  \&
-  \0
-  \9</pre></td></tr>
-<tr><td width=100%><pre>var __matches;
-
-if ((__matches = a.match(b)) || (__matches = b.match(c))) {
-  __matches;
-  __matches[0];
-  __matches[0];
-  __matches[9];
-}</pre></td></tr>
-</table>
-
-### Named Function Supported
-
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>a = -&gt;
-b = ->
-null</pre></td>
-	<td width=50% valign=top><pre>function a() {};
-
-function b() {};
-
-null;</pre></td>
-</tr>
-</table>
-
-Those cases will be kept in non-named function
-
-<table width=100%>
-<tr>
-	<td width=50% valign=top><pre>f = null
-if a
-  b = c -&gt;
-d e = ->
-f = ->
-null</pre></td>
-	<td width=50% valign=top><pre>var b, e, f;
-
-f = null;
-
-if (a) {
-  b = c(function() {});
-}
-
-d(e = function() {});
-
-f = function() {};
-
-null;
-
-</pre></td>
-</tr>
-</table>
-
-     _     _              _                     ___    ___             
-    | |   | |            | |                   / __)  / __)            
-    | |__ | | _____  ____| |  _     ____ ___ _| |__ _| |__ _____ _____ 
-    |  _ \| |(____ |/ ___) |_/ )   / ___) _ (_   __|_   __) ___ | ___ |
-    | |_) ) |/ ___ ( (___|  _ (   ( (__| |_| || |    | |  | ____| ____|
-    |____/ \_)_____|\____)_| \_)   \____)___/ |_|    |_|  |_____)_____)
-
-
-What's this?
-============
-
-BlackCoffee is a CoffeeScript dialect that adds hygienic macros (also known as black magic, hence the name). We aim for inclusion of this exension into mainline CoffeeScript.
-
-Applications include:
-- compile-time calculations,
-- file inclusion,
-- conditional compilation,
-- i18n translation,
-- html resource versioning,
-- syntactic sugar,
-- and whatever else you can think of doing at compile-time.
-
-Besides macros, BlackCoffee sneaks one additional feature in CoffeeScript: Coco-like `!->` and `!=>` procedures. Prefixing an exclamation mark to the function operator, causes the function not to do an implicit return of the last expression.
-
-
-Installation and usage
-======================
-
-You can obtain BlackCoffee through npm:
-```sh
-npm install blackcoffee
-```
-
-..or clone the repository:
-```sh
-git clone https://github.com/paiq/blackcoffee
-```
-
-In both cases you'll have a local installation, assuming you don't want to replace your regular CoffeeScript compiler. You'll find the main compiler executable here `blackcoffee/bin/coffee` or here `node\_modules/blackcoffee/bin/coffee`.
-
-The compiler can be used in the exact same way as the regular CoffeeScript compiler (except that macros are supported, of course). In addition, BlackCoffee comes with its own very simple CLI named `blackcoffee`, which supports multiple source files and command line flags that can be used by macros. Read the 'blackcoffee cli' section for more info.
-
-To install blackcoffee system-wide, *replacing any already installed CoffeeScript version*:
-```sh
-sudo npm install -g blackcoffee
-```
-
-...or:
-```sh
-git clone https://github.com/paiq/blackcoffee
-cd blackcoffee
-sudo bin/cake install
-```
-
+Macros (from BlackCoffee)
+=========================
 
 One-time macro calls
-====================
+--------------------
 
 The `macro` keyword can be used in two distinct ways. When it's followed directly by a closure, that closure will be executed at compile time. In case the closure returns a BlackCoffee node (see below) it will replace the original macro-call. Otherwise the macro-call will be removed or replaced by `undefined`.
 
@@ -466,9 +43,8 @@ fileContents = macro ->
 # using `require('fs')` this will not work when compiling in the browser.
 ```
 
-
 Named macro definitions
-=======================
+-----------------------
 
 When the `macro` keyword is followed by an identifier and then a closure, it's a definition. Every time the identifier is used as a closure call later on in the program, the closure call is replaced by the result of a compile-time call to the defined macro. Arguments to the macro are passed to the compile-time closure as BlackCoffee nodes.
 
@@ -489,9 +65,8 @@ arr = replaceFooWithBar -> [foo+foo, -> foo]
 # Expands to: `arr = [bar+bar, -> bar]`
 ```
 
-
 Helper functions
-================
+----------------
 
 We've already seen some examples of helper functions defined in the compile-time `macro.` namespace. Let's go over them one by one:
 
@@ -556,9 +131,8 @@ macro ifdef (key) ->
 throw 'party' ifdef firstBeta
 ```
 
-
 Working with Nodes
-==================
+------------------
 
 WARNING: Manipulating BlackCoffee nodes directly exposes compiler implementation details. Therefore, documentation is mostly absent and things may change between compiler versions without notice. It is recommended to use these techniques as little as possible.
 
@@ -607,19 +181,18 @@ delegateArithmetic ->
     eq 9, 3*3
 ```
 
+blacktoffee cli
+---------------
 
-blackcoffee cli
-===============
+This version of CoffeeScript comes with the usual `bin/coffee` compiler/runner/repl, adapted to work with macros. You may choose to use the additional `bin/blacktoffee` compiler instead, as it allows for compilation of multiple source files to one target. This is especially useful if you want to prefix each script with a set of common macro definitions.
 
-This version of CoffeeScript comes with the usual `bin/coffee` compiler/runner/repl, adapted to work with macros. You may choose to use the additional `bin/blackcoffee` compiler instead, as it allows for compilation of multiple source files to one target. This is especially useful if you want to prefix each script with a set of common macro definitions.
-
-Syntax: `bin/blackcoffee [-o OUTFILE_JS] [-m OUTFILE_SRCMAP] [-f KEY[=VAL]]... [--] [INFILE]...`
+Syntax: `bin/blacktoffee [-o OUTFILE_JS] [-m OUTFILE_SRCMAP] [-f KEY[=VAL]]... [--] [INFILE]...`
 
 I think these options are pretty much self evident, except for `-f`, which can be used to set key/values on the `flags` object available in the compile-time context. This allows you to specify any sort of build options in your build script, which you can then use in your macros.
 
 Example:
 ```sh
-bin/blackcoffee -o test.js -m test.srcMap -f dev macros.coffee test.coffee
+bin/blacktoffee -o test.js -m test.srcMap -f dev macros.coffee test.coffee
 ```
 macros.coffee:
 ```CoffeeScript
@@ -632,4 +205,9 @@ test.coffee:
 # compile to nothing, unless the '-f dev' flag is specified at compile time:
 LOG "Hello developers!"
 ```
+
+Coroutines (from ToffeeScript)
+------------------------------
+
+TBD. TS is not yet fully ported to 1.7.x.
 
