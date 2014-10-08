@@ -14,7 +14,7 @@ Macro         = require './macro'
 
 # The current CoffeeScript version number.
 exports.FILE_EXTENSIONS = ['.coffee', '.litcoffee', '.coffee.md', '.toffee', '.ts']
-exports.VERSION = '1.7.1'
+exports.VERSION = '1.8.0'
 
 # Expose helpers for testing.
 exports.helpers = helpers

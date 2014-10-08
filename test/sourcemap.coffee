@@ -44,6 +44,7 @@ test "SourceMap tests", ->
   eq 1, x.first_line
   eq 9, x.first_column
 
+<<<<<<< HEAD
   # Look up a point futher along on the same line - should get back the same source position.
   x = map.sourceLocation 2, 10
   eq 1, x.first_line
@@ -82,3 +83,8 @@ test "SourceMap tests (with three combined files)", ->
   helpers.scripts.length = 0
   helpers.filenames.length = 0
 
+  # Look up a generated column - should get back the original source position.
+  arrayEq map.sourceLocation([2,8]), [1,9]
+
+  # Look up a point further along on the same line - should get back the same source position.
+  arrayEq map.sourceLocation([2,10]), [1,9]

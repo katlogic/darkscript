@@ -109,6 +109,9 @@ exports.Lexer = class Lexer
     if id is 'own' and @tag() is 'FOR'
       @token 'OWN', id
       return id.length
+    if id is 'from' and @tag() is 'YIELD'
+      @token 'FROM', id
+      return id.length
     forcedIdentifier = colon or
       (prev = last @tokens) and (prev[0] in ['.', '?.', '::', '?::'] or
       not prev.spaced and prev[0] is '@')
@@ -190,9 +193,13 @@ exports.Lexer = class Lexer
       when "'" then [string] = SIMPLESTR.exec(@chunk) || []
       when '"' then string = @balancedString @chunk, '"'
     return 0 unless string
-    trimmed = @removeNewlines string[1...-1]
+    inner = string[1...-1]
+    trimmed = @removeNewlines inner
     if quote is '"' and 0 < string.indexOf '#{', 1
-      @interpolateString trimmed, strOffset: 1, lexedLength: string.length
+      numBreak = pos = 0
+      innerLen = inner.length
+      numBreak++ while inner.charAt(pos++) is '\n' and pos < innerLen
+      @interpolateString trimmed, strOffset: 1 + numBreak, lexedLength: string.length
     else
       @token 'STRING', quote + @escapeLines(trimmed) + quote, 0, string.length
     if octalEsc = /^(?:\\.|[^\\])*\\(?:0[0-7]|[1-7])/.test string
@@ -207,7 +214,8 @@ exports.Lexer = class Lexer
     quote = heredoc.charAt 0
     doc = @sanitizeHeredoc match[2], quote: quote, indent: null
     if quote is '"' and 0 <= doc.indexOf '#{'
-      @interpolateString doc, heredoc: yes, strOffset: 3, lexedLength: heredoc.length
+      strOffset = if match[2].charAt(0) is '\n' then 4 else 3
+      @interpolateString doc, heredoc: yes, strOffset: strOffset, lexedLength: heredoc.length
     else
       @token 'STRING', @makeString(doc, quote, yes), 0, heredoc.length
     heredoc.length
@@ -258,7 +266,7 @@ exports.Lexer = class Lexer
     @token 'IDENTIFIER', 'RegExp', 0, 0
     @token 'CALL_START', '(', 0, 0
     tokens = []
-    for token in @interpolateString(body, regex: yes)
+    for token in @interpolateString(body, regex: yes, strOffset: 3)
       [tag, value] = token
       if tag is 'TOKENS'
         tokens.push value...
@@ -564,7 +572,7 @@ exports.Lexer = class Lexer
         errorToken = @makeToken '', 'string interpolation', offsetInChunk + i + 1, 2
       inner = expr[1...-1]
       if inner.length
-        [line, column] = @getLineAndColumnFromChunk(strOffset + i + 1)
+        [line, column] = @getLineAndColumnFromChunk(strOffset + i + 2)
         nested = new Lexer().tokenize inner, line: line, column: column, rewrite: off
         popped = nested.pop()
         popped = nested.shift() if nested[0]?[0] is 'TERMINATOR'
@@ -700,7 +708,7 @@ exports.Lexer = class Lexer
   # Are we in the midst of an unfinished expression?
   unfinished: ->
     LINE_CONTINUER.test(@chunk) or
-    @tag() in ['\\', '.', '?.', '?::', 'UNARY', 'MATH', 'UNARY_MATH', '+', '-',
+    @tag() in ['\\', '.', '?.', '?::', 'UNARY', 'MATH', 'UNARY_MATH', '+', '-', 'YIELD',
                '**', 'SHIFT', 'RELATION', 'COMPARE', 'LOGIC', 'THROW', 'EXTENDS']
 
   # Remove newlines from beginning and (non escaped) from end of string literals.
@@ -741,7 +749,7 @@ exports.Lexer = class Lexer
 JS_KEYWORDS = [
   'true', 'false', 'null', 'this'
   'new', 'delete', 'typeof', 'in', 'instanceof'
-  'return', 'throw', 'break', 'continue', 'debugger'
+  'return', 'throw', 'break', 'continue', 'debugger', 'yield'
   'if', 'else', 'switch', 'for', 'while', 'do', 'try', 'catch', 'finally'
   'class', 'extends', 'super'
 ]

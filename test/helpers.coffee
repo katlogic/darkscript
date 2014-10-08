@@ -44,6 +44,17 @@ test "the `compact` helper removes falsey values from an array, preserves truthy
   arrayEq truthyValues, compact(allValues)
 
 
+# `count`
+
+test "the `count` helper counts the number of occurrences of a string in another string", ->
+  eq 1/0, count('abc', '')
+  eq 0, count('abc', 'z')
+  eq 1, count('abc', 'a')
+  eq 1, count('abc', 'b')
+  eq 2, count('abcdc', 'c')
+  eq 2, count('abcdabcd','abc')
+
+
 # `merge`
 
 test "the `merge` helper makes a new object with all properties of the objects given as its arguments", ->

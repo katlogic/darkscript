@@ -1,9 +1,10 @@
 {
-  "name":         "toffee-script",
-  "description":  "CoffeeScript with asynchronous syntax and additional features",
-  "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript", "asynchronous"],
-  "author":       "Miao Jiang",
-  "version":      "1.7.1-0",
+  "name":         "darkscript",
+  "description":  "CoffeeScript dialect with callback syntactic sugar and hygienic macros",
+  "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript", "blackscript", "darkscript", "asynchronous", "macros" ],
+  "author":       "Karel Tuma",
+  "contributors": ["Miao Jiang", "Frank van Viegen", "Jeremy Ashkenas"]
+  "version":      "1.8.0-0",
   "licenses":     [{
     "type":       "MIT",
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
@@ -20,8 +21,10 @@
     "blacktoffee":"./bin/blackcoffee",
     "tcons":      "./bin/cake"
   },
+  "preferGlobal": true,
   "scripts": {
-    "test": "node ./bin/cake test"
+    "test":         "node ./bin/cake test",
+    "test-harmony": "node --harmony ./bin/cake test"
   },
   "homepage":     "https://github.com/katlogic/toffee-script",
   "bugs":         "https://github.com/katlogic/toffee-script/issues",
@@ -34,10 +37,9 @@
     "jison": ">=0.2.0",
     "highlight.js": "~8.0.0",
     "underscore": "~1.5.2",
-    "docco": "0.6.x"
+    "docco": "~0.6.2"
   },
   "dependencies": {
-    "mkdirp": "~0.3.5",
-    "docco": "~0.6.2"
+    "mkdirp": "~0.3.5"
   }
 }

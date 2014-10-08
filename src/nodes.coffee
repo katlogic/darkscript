@@ -865,7 +865,7 @@ exports.Comment = class Comment extends Base
   makeReturn:      THIS
 
   compileNode: (o, level) ->
-    comment = @comment.replace /^(\s*)#/gm, "$1 *"
+    comment = @comment.replace /^(\s*)# /gm, "$1 * "
     code = "/*#{multident comment, @tab}#{if '\n' in comment then "\n#{@tab}" else ''} */"
     code = o.indent + code if (level or o.level) is LEVEL_TOP
     [@makeCode("\n"), @makeCode(code)]
@@ -1725,6 +1725,8 @@ exports.Code = class Code extends Base
     @bound   = tag in ['=>', '!=>'] # MERGE: or ...
     @context = '_this' if @bound
     @body.isCodeBlock = true
+    @isGenerator = @body.contains (node) ->
+      node instanceof Op and node.operator in ['yield', 'yield*']
 
     @autocb = false
     @autocbArgs = []
@@ -1811,6 +1813,7 @@ exports.Code = class Code extends Base
     @eachParamName (name, node) ->
       node.error "multiple parameters named '#{name}'" if name in uniqs
       uniqs.push name
+    # MERGE: Needs to stay, see if 0 above
     @body.makeReturn() unless (wasEmpty or @noReturn) && !$flows.last().next
     if @bound
       if o.scope.parent.method?.bound
@@ -2193,9 +2196,10 @@ exports.Op = class Op extends Base
 
   # The map of conversions from CoffeeScript to JavaScript symbols.
   CONVERSIONS =
-    '==': '==='
-    '!=': '!=='
-    'of': 'in'
+    '==':        '==='
+    '!=':        '!=='
+    'of':        'in'
+    'yieldfrom': 'yield*'
 
   # The map of invertible operators.
   INVERSIONS =
@@ -2205,6 +2209,9 @@ exports.Op = class Op extends Base
   children: ['first', 'second']
 
   isSimpleNumber: NO
+
+  isYield: ->
+    @operator in ['yield', 'yield*']
 
   isUnary: ->
     not @second
@@ -2273,6 +2280,7 @@ exports.Op = class Op extends Base
     if @operator in ['--', '++'] and @first.unwrapAll().value in STRICT_PROSCRIBED
       @error "cannot increment/decrement \"#{@first.unwrapAll().value}\""
     return @compileRegexp    o if @operator == '=~'
+    return @compileYield     o if @isYield()
     return @compileUnary     o if @isUnary()
     return @compileChain     o if isChain
     switch @operator
@@ -2339,6 +2347,20 @@ exports.Op = class Op extends Base
         [@second]
       )
     ).compileNode o
+
+  compileYield: (o) ->
+    parts = []
+    op = @operator
+    if not o.scope.parent?
+      @error 'yield statements must occur within a function generator.'
+    if 'expression' in Object.keys @first
+      parts.push @first.expression.compileToFragments o, LEVEL_OP if @first.expression?
+    else 
+      parts.push [@makeCode "(#{op} "] 
+      parts.push @first.compileToFragments o, LEVEL_OP
+      parts.push [@makeCode ")"] 
+    @joinFragmentArrays parts, ''
+
   compilePower: (o) ->
     # Make a Math.pow call
     pow = new Value new Literal('Math'), [new Access new Literal 'pow']
