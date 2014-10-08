@@ -770,10 +770,10 @@ RESERVED = [
   'case', 'default', 'function', 'var', 'void', 'with', 'const', 'let', 'enum'
   'export', 'import', 'native', '__hasProp', '__extends', '__slice', '__bind'
   '__indexOf', 'implements', 'interface', 'package', 'private', 'protected'
-  'public', 'static', 'yield'
+  'public', 'static'
 ]
 
-STRICT_PROSCRIBED = ['arguments', 'eval']
+STRICT_PROSCRIBED = ['arguments', 'eval', 'yield*']
 
 # The superset of both JavaScript keywords and reserved words, none of which may
 # be used as identifiers or properties.

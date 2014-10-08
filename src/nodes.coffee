@@ -1754,13 +1754,14 @@ exports.Code = class Code extends Base
     if @bound and o.scope.method?.bound
       @context = o.scope.method.context
 
-    # Handle bound functions early.
-    if @bound and not @context
-      @context = '_this'
-      wrapper = new Code [new Param new Literal @context], new Block [this]
-      boundfunc = new Call(wrapper, [new Literal 'this'])
-      boundfunc.updateLocationDataIfMissing @locationData
-      return boundfunc.compileNode(o)
+    if 0
+      # Handle bound functions early.
+      if @bound and not @context
+        @context = '_this'
+        wrapper = new Code [new Param new Literal @context], new Block [this]
+        boundfunc = new Call(wrapper, [new Literal 'this'])
+        boundfunc.updateLocationDataIfMissing @locationData
+        return boundfunc.compileNode(o)
 
     o.scope         = del(o, 'classScope') or @makeScope o.scope
     o.scope.shared  = del(o, 'sharedScope')

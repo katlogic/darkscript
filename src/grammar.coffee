@@ -624,7 +624,7 @@ operators = [
   ['right',     '=', ':', 'COMPOUND_ASSIGN', 'RETURN', 'THROW', 'EXTENDS']
   ['right',     'FORIN', 'FOROF', 'BY', 'WHEN']
   ['right',     'IF', 'ELSE', 'FOR', 'WHILE', 'UNTIL', 'LOOP', 'SUPER', 'CLASS', 'ASYNC']
-  ['right',     'POST_IF'] # MERGE: 'left'
+  ['left',     'POST_IF'] # MERGE: 'left'
 ]
 
 # Wrapping Up
