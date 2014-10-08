@@ -140,7 +140,6 @@ macro include (fn) -> macro.fileToNode @myPathSearcher(fn+'.coffee')
 include 'includeMe'
 ```
 
-To suggest a feature or report a bug: http://github.com/jashkenas/coffeescript/issues
 ```CoffeeScript
 macro swap (a,b) -> macro.codeToNode(-> [x,y]=[y,x]).subst {x:a, y:b}
 swap c, d
