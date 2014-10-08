@@ -3,7 +3,7 @@ Darkscript
 
 Darkscript is a fork of ToffeeScript and BlackCoffee, both of which
 are CoffeeScript dialects. Darkscript attempts to follow bleeding
-edge CoffeeScript (1.7.x) and is currently in experimental shape.
+edge CoffeeScript (1.8.x) and is currently in experimental shape.
 
 Overview of goals
 -----------------
@@ -86,7 +86,6 @@ Named macro definitions
 
 When the `macro` keyword is followed by an identifier and then a closure, it's a definition. Every time the identifier is used as a closure call later on in the program, the closure call is replaced by the result of a compile-time call to the defined macro. Arguments to the macro are passed to the compile-time closure as BlackCoffee nodes.
 
-<<<<<<< HEAD
 Examples:
 ```CoffeeScript
 macro macroWithoutArgs -> macro.csToNode '3 * a'
@@ -102,11 +101,6 @@ macro replaceFooWithBar (node) -> node.subst {foo: macro.csToNode 'bar'}
 
 arr = replaceFooWithBar -> [foo+foo, -> foo]
 # Expands to: `arr = [bar+bar, -> bar]`
-=======
-```shell
-git clone https://github.com/jashkenas/coffeescript.git
-sudo coffeescript/bin/cake install
->>>>>>> cs
 ```
 
 Helper functions
@@ -139,21 +133,14 @@ A little wrapper around `csToNode` and `jsToNode` that tries to load `filename` 
 
 This helper can be used for file inclusion, though one may want to write a wrapper macro around it, to search in the appropriate path(s) and maybe to dependency tracking and such.
 
-<<<<<<< HEAD
 ```CoffeeScript
 macro -> macro.fileToNode 'includeMe.coffee'
 # or
 macro include (fn) -> macro.fileToNode @myPathSearcher(fn+'.coffee')
 include 'includeMe'
 ```
-=======
+
 To suggest a feature or report a bug: http://github.com/jashkenas/coffeescript/issues
->>>>>>> cs
-
-**macro.codeToNode(closure)**
-Takes a closure (function), and returns its body as a node. So the closure itself is *not* part of the node. Note that `codeToNode` is the only helper function that is not actually a function. It's a predefined macro. It needs to be, because it needs to capture the node of its argument instead of the value.
-
-<<<<<<< HEAD
 ```CoffeeScript
 macro swap (a,b) -> macro.codeToNode(-> [x,y]=[y,x]).subst {x:a, y:b}
 swap c, d
@@ -259,4 +246,4 @@ LOG "Hello developers!"
 The source repository: https://github.com/jashkenas/coffeescript.git
 
 Our lovely and talented contributors are listed here: http://github.com/jashkenas/coffeescript/contributors
->>>>>>> cs
+
