@@ -241,9 +241,3 @@ test.coffee:
 # compile to nothing, unless the '-f dev' flag is specified at compile time:
 LOG "Hello developers!"
 ```
-
-=======
-The source repository: https://github.com/jashkenas/coffeescript.git
-
-Our lovely and talented contributors are listed here: http://github.com/jashkenas/coffeescript/contributors
-
