@@ -3,8 +3,8 @@
   "description":  "CoffeeScript dialect with callback syntactic sugar and hygienic macros",
   "keywords":     ["javascript", "language", "coffeescript", "compiler", "toffeescript", "blackscript", "darkscript", "asynchronous", "macros" ],
   "author":       "Karel Tuma",
-  "contributors": ["Miao Jiang", "Frank van Viegen", "Jeremy Ashkenas"]
-  "version":      "1.8.0-0",
+  "contributors": ["Miao Jiang", "Frank van Viegen", "Jeremy Ashkenas"],
+  "version":      "1.8.0-1",
   "licenses":     [{
     "type":       "MIT",
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
