@@ -490,7 +490,8 @@ exports.Block = class Block extends Base
     o.level   = LEVEL_TOP
     @spaced   = yes
     o.scope   = new Scope null, this, null
-    $flows   = new Flows(o.scope)
+    $flows.push {scope: o.scope}
+    #$flows   = new Flows(o.scope)
     @isCodeBlock = true
     # Mark given local variables in the root scope as parameters so they don't
     # end up being declared on this block.
@@ -507,6 +508,7 @@ exports.Block = class Block extends Base
         prelude.push @makeCode "\n"
       @expressions = rest
     fragments = @compileWithDeclarations o
+    $flows.pop()
     return fragments if o.bare
     [].concat prelude, @makeCode("(function() {\n"), fragments, @makeCode("\n}).call(this);\n")
 
@@ -3086,8 +3088,8 @@ exports.AsyncCall = class AsyncCall extends Call
 
 
 class Flows
-  constructor: (scope) ->
-    @flows = [{scope}]
+  constructor: () ->
+    @flows = []
 
   push: (flow = {}) ->
     @flows.push flow
@@ -3105,6 +3107,8 @@ class Flows
   last: ->
     last(@flows)
 
+# FIX: This is still super ugly
+$flows   = new Flows()
 
 # Faux-Nodes
 # ----------
