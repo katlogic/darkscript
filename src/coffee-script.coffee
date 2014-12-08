@@ -31,6 +31,8 @@ exports.compile = compile = (code, options = {}) ->
   options = helpers.extend {}, options
 
   ast = exports.nodes code, options
+  if options.macros
+    ast = new parser.yy.Block([exports.nodes(options.macros, {filename:'macros'}), ast])
   ast = Macro.expand(ast, exports.nodes) if options.macro != false
   fragments = ast.compileToFragments options
   
